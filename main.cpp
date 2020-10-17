@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
 	bool running = true;
 
 	SDL_Color col = { 255, 255, 255 };
-	TTF_Font *font = TTF_OpenFont("fonts/lucon.ttf", 15);
+	TTF_Font *font = TTF_OpenFont("fonts/LiberationMono-Regular.ttf", 16);
 
 	InfoBar bar(renderer, font);
 	bar.text = "*buffer*";
@@ -69,10 +69,10 @@ int main(int argc, char **argv) {
 		SDL_RenderClear(renderer);
 
 		buffer.render();
-		mini_buffer.render();
 		
 		bar.render();
 		
+		mini_buffer.render();
 		buffer.render_cursor();
 		mini_buffer.render_cursor();
 

@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "defs.hpp"
+#include "utils.hpp"
 
 Buffer::Buffer(SDL_Renderer *renderer, TTF_Font *font, InfoBar *bar,
 			   const char *start, bool is_minibuf) {
@@ -37,6 +38,10 @@ bool Buffer::load_from_file(const char *fp) {
 
 	std::string line;
 	while (std::getline(file, line)) {
+		replace_string_in_place(line,
+								"\t",
+								"    ");
+		
 		lines.push_back(new Line(renderer, font));
 		lines.back()->text = line;
 		lines.back()->update_texture();
@@ -58,12 +63,21 @@ void Buffer::cursor_move_up() {
 	cursor_y--;
 	infobar->cursor_y = cursor_y;
 	infobar->update_texture();
+
+	if (cursor_y * char_height - view_y < 0) {
+		view_y -= char_height * (int) (WINDOW_HEIGHT / 2 / char_height);
+	}
+	if (view_y < 0) view_y = 0;
 }
 
 void Buffer::cursor_move_down() {
 	cursor_y++;
 	infobar->cursor_y = cursor_y;
 	infobar->update_texture();
+
+	if (cursor_y * char_height + char_height * 3 - view_y > WINDOW_HEIGHT) {
+		view_y += char_height * (int) (WINDOW_HEIGHT / 2 / char_height);
+	}
 }
 
 void Buffer::cursor_move_left() {
@@ -96,6 +110,21 @@ void Buffer::event_update(const SDL_Event &event) {
 		cursor_move_right();
 	} else if (event.type == SDL_KEYDOWN) {
 		switch (event.key.keysym.sym) {
+		case SDLK_v: {
+			if (keyboard[SDL_SCANCODE_LCTRL]) {
+				view_y += (int) (WINDOW_HEIGHT - 100 / char_height);
+				if (view_y / char_height > lines.size()) {
+					view_y = lines.size() * char_height - (WINDOW_HEIGHT / 2);
+				}
+				cursor_y = (int) ((view_y / char_height) + 1);
+			} else if (keyboard[SDL_SCANCODE_LALT]) {
+				view_y -= (int) (WINDOW_HEIGHT - 100 / char_height);
+				if (view_y < 0) view_y = 0;
+				
+				cursor_y = (int) ((view_y / char_height) + 1);
+			}
+			break;
+		}
 		case SDLK_BACKSPACE: {
 			if (cursor_x == 0 && cursor_y == 0) break;
 			
@@ -122,9 +151,13 @@ void Buffer::event_update(const SDL_Event &event) {
 						exit(1);
 					}
 
-					std::ofstream stream(lines[0]->text);
+					std::ofstream stream(line->text);
 					for (auto *l : main_buffer->lines) {
-						stream << l->text << "\n";
+						std::string text = replace_string(l->text,
+														  "    ",
+														  "\t");
+						
+						stream << text << "\n";
 					}
 					stream.close();
 
@@ -151,6 +184,10 @@ void Buffer::event_update(const SDL_Event &event) {
 
 					in_focus = false;
 					main_buffer->in_focus = true;
+					view_y = 0;
+					
+					main_buffer->cursor_x = 0;
+					main_buffer->set_cursor_y(0);
 					break;
 				}
 				}
@@ -290,28 +327,42 @@ void Buffer::event_update(const SDL_Event &event) {
 
 void Buffer::render() {
 	int yoff = 0;
-	if (is_minibuffer) yoff = WINDOW_HEIGHT - char_height;
+	if (is_minibuffer) {
+		yoff = WINDOW_HEIGHT - char_height;
+		
+		const SDL_Rect rect = { 0,
+								WINDOW_HEIGHT - char_height,
+								WINDOW_WIDTH,
+								char_height };
+		
+		SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
+		SDL_RenderFillRect(renderer, &rect);
+	}
 	
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	for (size_t i = 0; i < lines.size(); ++i) {
-		lines[i]->render(i * char_height + yoff);
+		lines[i]->render(i * char_height + yoff - view_y);
 	}
 }
 
 void Buffer::clamp_cursor() {
-	if (cursor_y > lines.size() - 1) set_cursor_y(lines.size() - 1);
-	if (cursor_x < 0) cursor_x = 0;
 	if (cursor_y < 0) set_cursor_y(0);
-	if (cursor_x > lines[cursor_y]->text.size()) cursor_x = lines[cursor_y]->text.size();
+	else if (cursor_y > lines.size() - 1) {
+		printf("Set cursor to bottom. Cursor y: %d\n", cursor_y);
+		set_cursor_y(lines.size() - 1);
+	}
+	else if (cursor_x < 0) cursor_x = 0;
+	else if (cursor_x > lines[cursor_y]->text.size()) cursor_x = lines[cursor_y]->text.size();
 }
 
 void Buffer::render_cursor() {
-	int yoff = 0;
-	if (is_minibuffer) yoff = WINDOW_HEIGHT - char_height;
+	int yoff = -view_y;
+	if (is_minibuffer) yoff += WINDOW_HEIGHT - char_height;
 	
 	SDL_Rect cursor = { cursor_x * char_width,
-						cursor_y * char_height + yoff,
+						cursor_y * char_height + yoff + char_height / 2,
 						char_width,
-						char_height };
+						char_height / 2};
 
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	if (in_focus) {

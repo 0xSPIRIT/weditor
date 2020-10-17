@@ -35,6 +35,8 @@ public:
 	TTF_Font *font;
 	Buffer *mini_buffer = nullptr;
 
+	int view_y = 0;
+
 	InfoBar *infobar;
 
 	bool in_focus = true;
