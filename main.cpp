@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
 	bool running = true;
 
 	SDL_Color col = { 255, 255, 255 };
-	TTF_Font *font = TTF_OpenFont("fonts/LiberationMono-Regular.ttf", 16);
+	TTF_Font *font = TTF_OpenFont("fonts/8514oem.fon", 16);
 
 	InfoBar bar(renderer, font);
 	bar.text = "*buffer*";

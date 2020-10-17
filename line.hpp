@@ -17,7 +17,7 @@ struct Line {
 	void render(int yoff);
 	void update_texture();
 public:
-	std::string text;
+	std::string text, prefix;
 	size_t length = 0;
 
 	TTF_Font *font = NULL;

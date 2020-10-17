@@ -163,7 +163,8 @@ void Buffer::event_update(const SDL_Event &event) {
 
 					infobar->text = line->text;
 					infobar->update_texture();
-					
+
+					line->prefix = "";
 					line->text = "Saved to " + line->text + ".";
 					cursor_x = line->text.size();
 					line->update_texture();
@@ -174,6 +175,7 @@ void Buffer::event_update(const SDL_Event &event) {
 				}
 				case MB_LoadFile: {
 					int err = main_buffer->load_from_file(&(lines[0]->text[0]));
+					line->prefix = "";
 					if (err) {
 						line->text = "Failed to load " + lines[0]->text + "!";
 					} else {
@@ -284,6 +286,7 @@ void Buffer::event_update(const SDL_Event &event) {
 				}
 
 				mini_buffer->mode = MB_SaveFile;
+				mini_buffer->lines[0]->prefix = "Save to: ";
 				mini_buffer->lines[0]->text = "";
 				mini_buffer->lines[0]->update_texture();
 				mini_buffer->in_focus = true;
@@ -301,6 +304,7 @@ void Buffer::event_update(const SDL_Event &event) {
 				}
 
 				mini_buffer->mode = MB_LoadFile;
+				mini_buffer->lines[0]->prefix = "Load File: ";
 				mini_buffer->lines[0]->text = "";
 				mini_buffer->lines[0]->update_texture();
 				mini_buffer->in_focus = true;
@@ -360,9 +364,13 @@ void Buffer::render_cursor() {
 	if (is_minibuffer) yoff += WINDOW_HEIGHT - char_height;
 	
 	SDL_Rect cursor = { cursor_x * char_width,
-						cursor_y * char_height + yoff + char_height / 2,
+						cursor_y * char_height + yoff,
 						char_width,
-						char_height / 2};
+						char_height };
+
+	if (is_minibuffer) {
+		cursor.x += lines[0]->prefix.size() * char_width;
+	}
 
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	if (in_focus) {
