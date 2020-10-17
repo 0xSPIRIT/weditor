@@ -98,6 +98,12 @@ void Buffer::set_cursor_x(int x) {
 	cursor_x = x;
 }
 
+bool Buffer::is_line_empty() {
+	return (lines[cursor_y]->text == "") ||
+		(lines[cursor_y]->text.find_first_not_of(' ') == std::string::npos);
+}
+
+
 void Buffer::event_update(const SDL_Event &event) {
 	if (!in_focus) return;
 
@@ -320,6 +326,26 @@ void Buffer::event_update(const SDL_Event &event) {
 				lines[0]->update_texture();
 				main_buffer->in_focus = true;
 				in_focus = false;
+			}
+			break;
+		}
+		case SDLK_LEFTBRACKET: {
+			if (keyboard[SDL_SCANCODE_LALT] && keyboard[SDL_SCANCODE_LSHIFT]) {
+				if (is_line_empty()) cursor_y--;
+				
+				while (cursor_y > 0 && !is_line_empty()) {
+					cursor_move_up();
+				}
+			}
+			break;
+		}
+		case SDLK_RIGHTBRACKET: {
+			if (keyboard[SDL_SCANCODE_LALT] && keyboard[SDL_SCANCODE_LSHIFT]) {
+				if (is_line_empty()) cursor_y++;
+				
+				while (cursor_y < lines.size()-1 && !is_line_empty()) {
+					cursor_move_down();
+				}
 			}
 			break;
 		}

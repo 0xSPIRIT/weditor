@@ -22,6 +22,8 @@ struct Buffer {
 
 	void set_cursor_y(int y);
 	void set_cursor_x(int x);
+
+	bool is_line_empty();
 	
 	void clamp_cursor();
 	void render_cursor();
