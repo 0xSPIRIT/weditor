@@ -34,6 +34,7 @@ struct Buffer {
 	void center_view();
 
 	bool is_line_empty();
+	bool is_char_separator();
 	
 	void clamp_cursor();
 	void render_cursor();
@@ -62,7 +63,9 @@ public:
 	
 	std::vector<Line *> lines;
 
-	std::vector<char> word_separators = { ' ', '(', ')', '[', ']', '_' };
+	std::vector<char> word_separators = { ' ', '(', ')', '[', ']', '_',
+                                          '<', '>', ',', '.', '=', ';',
+	                                      '#' };
 	
 	// MiniBuffer:
 	bool is_minibuffer;

@@ -95,53 +95,51 @@ void Buffer::cursor_move_right() {
 }
 
 void Buffer::cursor_forward_word() {
-	if (cursor_x == lines[cursor_y]->text.size()) return;
-
-	Line *line = lines[cursor_y];
-				
-	if (line->text[cursor_x] == ' '	||
-		line->text[cursor_x] != '('	||
-		line->text[cursor_x] != ')'	||
-		line->text[cursor_x] != '['	||
-		line->text[cursor_x] != ']'	||
-		line->text[cursor_x] != '_') {
+	while (is_char_separator()) {
 		cursor_x++;
 	}
-	while (line->text[cursor_x] != ' '	&&
-		   cursor_x < line->text.size()-1 &&
-		   line->text[cursor_x] != '('	&&
-		   line->text[cursor_x] != ')'	&&
-		   line->text[cursor_x] != '['	&&
-		   line->text[cursor_x] != ']'	&&
-		   line->text[cursor_x] != '_') {
+	
+	while (!is_char_separator()) {
 		cursor_x++;
+		if (cursor_x > lines[cursor_y]->text.size()) {
+			cursor_move_down();
+			cursor_x = 0;
+		}
+	}
+}
+
+void Buffer::cursor_backward_word() {
+	cursor_x--;
+	if (cursor_x < 0) {
+		if (cursor_y == 0) return;
+		cursor_move_up();
+		cursor_x = lines[cursor_y]->text.size();
+	}
+	
+	while (is_char_separator()) {
+		if (cursor_y == 0) return;
+		cursor_x--;
+		if (cursor_x < 0) {
+			cursor_move_up();
+			cursor_x = lines[cursor_y]->text.size();
+		}
+	}
+	while (!is_char_separator()) {
+		if (cursor_y == 0) return;
+		cursor_x--;
+		if (cursor_x < 0) {
+			cursor_move_up();
+			cursor_x = lines[cursor_y]->text.size();
+		}
 	}
 	cursor_x++;
 }
 
-void Buffer::cursor_backward_word() {
-	if (cursor_x == 0) return;
-				
-	Line *line = lines[cursor_y];
-				
-	if (line->text[cursor_x] != ' '	||
-		line->text[cursor_x] != '('	||
-		line->text[cursor_x] != ')'	||
-		line->text[cursor_x] != '['	||
-		line->text[cursor_x] != ']'	||
-		line->text[cursor_x] != '_') {
-		cursor_x--;
+bool Buffer::is_char_separator() {
+	for (char s : word_separators) {
+		if (cursor_x == 0 || lines[cursor_y]->text[cursor_x] == s) return true;
 	}
-				
-	while (line->text[cursor_x] != ' ' &&
-		   cursor_x  != 0   &&
-		   line->text[cursor_x] != '(' &&
-		   line->text[cursor_x] != ')' &&
-		   line->text[cursor_x] != '[' &&
-		   line->text[cursor_x] != ']' &&
-		   line->text[cursor_x] != '_') {
-		cursor_x--;
-	}
+	return false;
 }
 
 void Buffer::set_cursor_y(int y) {
