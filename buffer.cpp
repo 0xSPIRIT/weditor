@@ -198,16 +198,16 @@ void Buffer::event_update(const SDL_Event &event) {
 		switch (event.key.keysym.sym) {
 		case SDLK_v: {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
-				view_y += (int) (window_dim->height - 100 / char_height);
+				view_y += ((int) (window_dim->height / char_height) * char_height) - char_height * 5;
 				if (view_y / char_height > lines.size()) {
 					view_y = lines.size() * char_height - (window_dim->height / 2);
 				}
-				cursor_y = (int) ((view_y / char_height) + 1);
+				cursor_y = (int) (view_y / char_height);
 			} else if (keyboard[SDL_SCANCODE_LALT]) {
-				view_y -= (int) (window_dim->height - 100 / char_height);
+				view_y -= ((int) (window_dim->height / char_height) * char_height) + char_height * 5;
 				if (view_y < 0) view_y = 0;
 				
-				cursor_y = (int) ((view_y / char_height) + 1);
+				cursor_y = (int) (view_y / char_height);
 			}
 			break;
 		}

@@ -22,6 +22,7 @@ public:
 
 	TTF_Font *font = NULL;
 	SDL_Color color = { 209, 184, 151 };
+	SDL_Color minibuffer_color = { 209, 184, 51 };
 
 	SDL_Renderer *renderer;
 

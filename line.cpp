@@ -31,9 +31,14 @@ void Line::render(int yoff) {
 
 void Line::update_texture() {
 	std::string str = prefix + text;
+
+	SDL_Color *c = &color;
+	if (prefix != "") {
+		c = &minibuffer_color;
+	}
 	
 	surface = TTF_RenderText_Blended(font,
 									 &str[0],
-									 color);
+									 *c);
 	texture = SDL_CreateTextureFromSurface(renderer, surface);
 }
