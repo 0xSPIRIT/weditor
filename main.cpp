@@ -10,9 +10,12 @@
 #include "defs.hpp"
 
 int main(int argc, char **argv) {
+	std::string start_text;
 	if (argc > 2) {
 		fprintf(stderr, "Usage: %s <file> OR just %s.", argv[0]);
 		return 1;
+	} else if (argc == 2) {
+		start_text = argv[1];
 	}
 	
 	SDL_Init(SDL_INIT_EVERYTHING);
@@ -37,7 +40,7 @@ int main(int argc, char **argv) {
 	InfoBar bar(renderer, font, &window_dim);
 	bar.text = "*buffer*";
 
-	Buffer buffer(renderer, window, font, &bar, &window_dim, "", false);
+	Buffer buffer(renderer, window, font, &bar, &window_dim, &start_text[0], false);
 	if (argc == 2) {
 		buffer.load_from_file(argv[1]);
 		bar.text = argv[1];

@@ -30,6 +30,12 @@ Buffer::Buffer(SDL_Renderer *renderer, SDL_Window *window,
 	}
 }
 
+Buffer::~Buffer() {
+	for (auto *l : lines) {
+		delete l;
+	}
+}
+
 bool Buffer::load_from_file(const char *fp) {
 	std::ifstream file(fp);
 	if (!file.is_open()) {
@@ -56,13 +62,11 @@ bool Buffer::load_from_file(const char *fp) {
 	std::string title = infobar->text + " - weditor";
 	SDL_SetWindowTitle(window, &title[0]);
 
-	return 0;
-}
+	view_y = 0;
+	cursor_x = 0;
+	cursor_y = 0;
 
-Buffer::~Buffer() {
-	for (auto *l : lines) {
-		delete l;
-	}
+	return 0;
 }
 
 void Buffer::cursor_move_up() {
@@ -137,7 +141,8 @@ void Buffer::cursor_backward_word() {
 
 bool Buffer::is_char_separator() {
 	for (char s : word_separators) {
-		if (cursor_x == 0 || lines[cursor_y]->text[cursor_x] == s) return true;
+		if ((cursor_x == 0 && !is_line_empty()) || lines[cursor_y]->text[cursor_x] == s)
+			return true;
 	}
 	return false;
 }
@@ -181,6 +186,15 @@ void Buffer::event_update(const SDL_Event &event) {
 		line->add_chars(cursor_x, event.text.text);
 		cursor_move_right();
 	} else if (event.type == SDL_KEYDOWN) {
+		// Clear minibuffer when any key is pressed.
+		if (!is_minibuffer && mini_buffer->cursor_x > 0) {
+			mini_buffer->lines[0]->text = "";
+			mini_buffer->lines[0]->prefix = "";
+			mini_buffer->lines[0]->update_texture();
+		
+			mini_buffer->cursor_x = 0;
+		}
+		
 		switch (event.key.keysym.sym) {
 		case SDLK_v: {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
