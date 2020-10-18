@@ -7,11 +7,14 @@
 #include "defs.hpp"
 #include "utils.hpp"
 
-Buffer::Buffer(SDL_Renderer *renderer, TTF_Font *font, InfoBar *bar,
+Buffer::Buffer(SDL_Renderer *renderer, SDL_Window *window,
+			   TTF_Font *font, InfoBar *bar, WindowDim *dim,
 			   const char *start, bool is_minibuf) {
 	this->renderer = renderer;
+	this->window = window;
 	this->font = font;
 	this->infobar = bar;
+	this->window_dim = dim;
 	this->is_minibuffer = is_minibuf;
 
 	infobar->cursor_y = 0;
@@ -33,7 +36,7 @@ bool Buffer::load_from_file(const char *fp) {
 		return 1;
 	}
 
-	delete lines[0];
+	for (auto *e : lines) { delete e; }
 	lines.clear();
 
 	std::string line;
@@ -46,9 +49,12 @@ bool Buffer::load_from_file(const char *fp) {
 		lines.back()->text = line;
 		lines.back()->update_texture();
 	}
-
+	
 	infobar->text = fp;
 	infobar->update_texture();
+
+	std::string title = infobar->text + " - weditor";
+	SDL_SetWindowTitle(window, &title[0]);
 
 	return 0;
 }
@@ -65,7 +71,7 @@ void Buffer::cursor_move_up() {
 	infobar->update_texture();
 
 	if (cursor_y * char_height - view_y < 0) {
-		view_y -= char_height * (int) (WINDOW_HEIGHT / 2 / char_height);
+		view_y -= char_height * (int) (window_dim->height / 2 / char_height);
 	}
 	if (view_y < 0) view_y = 0;
 }
@@ -75,8 +81,8 @@ void Buffer::cursor_move_down() {
 	infobar->cursor_y = cursor_y;
 	infobar->update_texture();
 
-	if (cursor_y * char_height + char_height * 3 - view_y > WINDOW_HEIGHT) {
-		view_y += char_height * (int) (WINDOW_HEIGHT / 2 / char_height);
+	if (cursor_y * char_height + char_height * 3 - view_y > window_dim->height) {
+		view_y += char_height * (int) (window_dim->height / 2 / char_height);
 	}
 }
 
@@ -86,6 +92,56 @@ void Buffer::cursor_move_left() {
 
 void Buffer::cursor_move_right() {
 	cursor_x++;
+}
+
+void Buffer::cursor_forward_word() {
+	if (cursor_x == lines[cursor_y]->text.size()) return;
+
+	Line *line = lines[cursor_y];
+				
+	if (line->text[cursor_x] == ' '	||
+		line->text[cursor_x] != '('	||
+		line->text[cursor_x] != ')'	||
+		line->text[cursor_x] != '['	||
+		line->text[cursor_x] != ']'	||
+		line->text[cursor_x] != '_') {
+		cursor_x++;
+	}
+	while (line->text[cursor_x] != ' '	&&
+		   cursor_x < line->text.size()-1 &&
+		   line->text[cursor_x] != '('	&&
+		   line->text[cursor_x] != ')'	&&
+		   line->text[cursor_x] != '['	&&
+		   line->text[cursor_x] != ']'	&&
+		   line->text[cursor_x] != '_') {
+		cursor_x++;
+	}
+	cursor_x++;
+}
+
+void Buffer::cursor_backward_word() {
+	if (cursor_x == 0) return;
+				
+	Line *line = lines[cursor_y];
+				
+	if (line->text[cursor_x] != ' '	||
+		line->text[cursor_x] != '('	||
+		line->text[cursor_x] != ')'	||
+		line->text[cursor_x] != '['	||
+		line->text[cursor_x] != ']'	||
+		line->text[cursor_x] != '_') {
+		cursor_x--;
+	}
+				
+	while (line->text[cursor_x] != ' ' &&
+		   cursor_x  != 0   &&
+		   line->text[cursor_x] != '(' &&
+		   line->text[cursor_x] != ')' &&
+		   line->text[cursor_x] != '[' &&
+		   line->text[cursor_x] != ']' &&
+		   line->text[cursor_x] != '_') {
+		cursor_x--;
+	}
 }
 
 void Buffer::set_cursor_y(int y) {
@@ -103,6 +159,18 @@ bool Buffer::is_line_empty() {
 		(lines[cursor_y]->text.find_first_not_of(' ') == std::string::npos);
 }
 
+void Buffer::update_view() {
+	if (cursor_y * char_height - view_y > window_dim->height - char_height * 3 ||
+		cursor_y * char_height - view_y < 0) {
+		view_y = cursor_y * char_height - window_dim->height / 2;
+	}
+	if (view_y < 0) view_y = 0;
+}
+
+void Buffer::center_view() {
+	view_y = cursor_y * char_height - window_dim->height / 2;
+	if (view_y < 0) view_y = 0;
+}
 
 void Buffer::event_update(const SDL_Event &event) {
 	if (!in_focus) return;
@@ -118,13 +186,13 @@ void Buffer::event_update(const SDL_Event &event) {
 		switch (event.key.keysym.sym) {
 		case SDLK_v: {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
-				view_y += (int) (WINDOW_HEIGHT - 100 / char_height);
+				view_y += (int) (window_dim->height - 100 / char_height);
 				if (view_y / char_height > lines.size()) {
-					view_y = lines.size() * char_height - (WINDOW_HEIGHT / 2);
+					view_y = lines.size() * char_height - (window_dim->height / 2);
 				}
 				cursor_y = (int) ((view_y / char_height) + 1);
 			} else if (keyboard[SDL_SCANCODE_LALT]) {
-				view_y -= (int) (WINDOW_HEIGHT - 100 / char_height);
+				view_y -= (int) (window_dim->height - 100 / char_height);
 				if (view_y < 0) view_y = 0;
 				
 				cursor_y = (int) ((view_y / char_height) + 1);
@@ -167,6 +235,9 @@ void Buffer::event_update(const SDL_Event &event) {
 					}
 					stream.close();
 
+					std::string title = line->text + " - weditor";
+					SDL_SetWindowTitle(window, &title[0]);
+
 					infobar->text = line->text;
 					infobar->update_texture();
 
@@ -183,7 +254,16 @@ void Buffer::event_update(const SDL_Event &event) {
 					int err = main_buffer->load_from_file(&(lines[0]->text[0]));
 					line->prefix = "";
 					if (err) {
-						line->text = "Failed to load " + lines[0]->text + "!";
+						for (auto *e : main_buffer->lines) { delete e; }
+						main_buffer->lines.clear();
+						
+						main_buffer->lines.push_back(new Line(renderer, font));
+						main_buffer->lines.back()->update_texture();
+
+						infobar->text = lines[0]->text;
+						infobar->update_texture();
+
+						line->text = "Created new file.";
 					} else {
 						line->text = lines[0]->text + " loaded successfully.";
 					}
@@ -196,6 +276,33 @@ void Buffer::event_update(const SDL_Event &event) {
 					
 					main_buffer->cursor_x = 0;
 					main_buffer->set_cursor_y(0);
+					break;
+				}
+				case MB_GotoLine: {
+					try {
+						int linenum = std::stoi(line->text);
+
+						if (linenum < 0) {
+							linenum = 0;
+						} else if (linenum > main_buffer->lines.size()-1) {
+							linenum = main_buffer->lines.size() - 1;
+						}
+						
+						main_buffer->set_cursor_y(linenum);
+						main_buffer->cursor_x = 0;
+						line->text = "Cursor set.";
+
+						main_buffer->update_view();
+					} catch (std::invalid_argument) {
+						line->text = "Invalid number.";
+					}
+
+					line->prefix = "";
+					cursor_x = line->text.size();
+					line->update_texture();
+
+					in_focus = false;
+					main_buffer->in_focus = true;
 					break;
 				}
 				}
@@ -225,6 +332,22 @@ void Buffer::event_update(const SDL_Event &event) {
 			}
 			break;
 		}
+		case SDLK_COMMA: {
+			if (keyboard[SDL_SCANCODE_LALT] && keyboard[SDL_SCANCODE_LSHIFT]) {
+				cursor_x = 0;
+				set_cursor_y(0);
+				update_view();
+			}
+			break;
+		}
+		case SDLK_PERIOD: {
+			if (keyboard[SDL_SCANCODE_LALT] && keyboard[SDL_SCANCODE_LSHIFT]) {
+				set_cursor_y(lines.size()-1);
+				cursor_x = lines[cursor_y]->text.size();
+				update_view();
+			}
+			break;
+		}
 		case SDLK_p: {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
 				cursor_move_up();
@@ -241,7 +364,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
 				cursor_move_left();
 			} else if (keyboard[SDL_SCANCODE_RALT]) {
-				cursor_x -= 5;
+				cursor_backward_word();
 			}
 			break;
 		}
@@ -249,7 +372,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
 				cursor_move_right();
 			} else if (keyboard[SDL_SCANCODE_RALT]) {
-				cursor_x += 5;
+				cursor_forward_word();
 			}
 			break;
 		}
@@ -265,6 +388,12 @@ void Buffer::event_update(const SDL_Event &event) {
 			}
 			break;
 		}
+		case SDLK_l: {
+			if (keyboard[SDL_SCANCODE_LCTRL]) {
+				center_view();
+			}
+			break;
+		}
 		case SDLK_k: {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
 				if (line->text == "" && cursor_y > 0) {
@@ -277,7 +406,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_TAB: {
-			line->text.insert(cursor_x, "    ");
+			line->text.insert(cursor_x, "	");
 			line->update_texture();
 			cursor_x += 4;
 			break;
@@ -293,14 +422,17 @@ void Buffer::event_update(const SDL_Event &event) {
 
 				mini_buffer->mode = MB_SaveFile;
 				mini_buffer->lines[0]->prefix = "Save to: ";
-				mini_buffer->lines[0]->text = "";
+				if (infobar->text != "*buffer*") {
+					mini_buffer->lines[0]->text = infobar->text;
+				}
 				mini_buffer->lines[0]->update_texture();
+
 				mini_buffer->in_focus = true;
 				in_focus = false;
 			}
 			break;
 		}
-		case SDLK_z: {
+		case SDLK_c: {
 			if (is_minibuffer) break;
 			
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
@@ -319,13 +451,22 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_g: {
-			if (!is_minibuffer) break;
-
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
-				lines[0]->text = "";
-				lines[0]->update_texture();
-				main_buffer->in_focus = true;
-				in_focus = false;
+			if (is_minibuffer) {
+				if (keyboard[SDL_SCANCODE_LCTRL]) {
+					lines[0]->text = "";
+					lines[0]->update_texture();
+					main_buffer->in_focus = true;
+					in_focus = false;
+				}
+			} else {
+				if (keyboard[SDL_SCANCODE_RALT]) {
+					mini_buffer->mode = MB_GotoLine;
+					mini_buffer->lines[0]->prefix = "Goto Line: ";
+					mini_buffer->lines[0]->text = "";
+					mini_buffer->lines[0]->update_texture();
+					mini_buffer->in_focus = true;
+					in_focus = false;
+				}
 			}
 			break;
 		}
@@ -358,11 +499,11 @@ void Buffer::event_update(const SDL_Event &event) {
 void Buffer::render() {
 	int yoff = 0;
 	if (is_minibuffer) {
-		yoff = WINDOW_HEIGHT - char_height;
+		yoff = window_dim->height - char_height;
 		
 		const SDL_Rect rect = { 0,
-								WINDOW_HEIGHT - char_height,
-								WINDOW_WIDTH,
+								window_dim->height - char_height,
+								window_dim->width,
 								char_height };
 		
 		SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
@@ -377,17 +518,14 @@ void Buffer::render() {
 
 void Buffer::clamp_cursor() {
 	if (cursor_y < 0) set_cursor_y(0);
-	else if (cursor_y > lines.size() - 1) {
-		printf("Set cursor to bottom. Cursor y: %d\n", cursor_y);
-		set_cursor_y(lines.size() - 1);
-	}
+	else if (cursor_y > lines.size() - 1) set_cursor_y(lines.size() - 1);
 	else if (cursor_x < 0) cursor_x = 0;
 	else if (cursor_x > lines[cursor_y]->text.size()) cursor_x = lines[cursor_y]->text.size();
 }
 
 void Buffer::render_cursor() {
 	int yoff = -view_y;
-	if (is_minibuffer) yoff += WINDOW_HEIGHT - char_height;
+	if (is_minibuffer) yoff += window_dim->height - char_height;
 	
 	SDL_Rect cursor = { cursor_x * char_width,
 						cursor_y * char_height + yoff,

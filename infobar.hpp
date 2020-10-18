@@ -5,8 +5,10 @@
 
 #include <string>
 
+#include "defs.hpp"
+
 struct InfoBar {
-	InfoBar(SDL_Renderer *renderer, TTF_Font *font);
+	InfoBar(SDL_Renderer *renderer, TTF_Font *font, WindowDim *dim);
 	~InfoBar();
 
 	void render();
@@ -14,6 +16,8 @@ struct InfoBar {
 public:
 	std::string text;
 	int cursor_y;
+
+	WindowDim *window_dim;
 	
 	TTF_Font *font;
 	SDL_Renderer *renderer;

@@ -4,8 +4,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-#include <windows.h>
-
 #include "buffer.hpp"
 #include "infobar.hpp"
 
@@ -20,18 +18,13 @@ int main(int argc, char **argv) {
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
 
-	std::string title = "weditor@";
-	TCHAR computer_name[128];
-	DWORD buf_count = 128;
-	GetComputerName(computer_name, &buf_count);
-	title += computer_name;
-
-	SDL_Window *window = SDL_CreateWindow(&title[0],
+	WindowDim window_dim;
+	SDL_Window *window = SDL_CreateWindow("*buffer* - weditor",
 										  SDL_WINDOWPOS_UNDEFINED,
 										  SDL_WINDOWPOS_UNDEFINED,
-										  WINDOW_WIDTH,
-										  WINDOW_HEIGHT,
-										  0);
+										  window_dim.width,
+										  window_dim.height,
+										  SDL_WINDOW_RESIZABLE);
 	
 	SDL_Renderer *renderer = SDL_CreateRenderer(window,
 												-1,
@@ -39,19 +32,19 @@ int main(int argc, char **argv) {
 	bool running = true;
 
 	SDL_Color col = { 255, 255, 255 };
-	TTF_Font *font = TTF_OpenFont("fonts/8514oem.fon", 16);
+	TTF_Font *font = TTF_OpenFont("fonts/8514oem.fon", 14);
 
-	InfoBar bar(renderer, font);
+	InfoBar bar(renderer, font, &window_dim);
 	bar.text = "*buffer*";
 
-	Buffer buffer(renderer, font, &bar, "", false);
+	Buffer buffer(renderer, window, font, &bar, &window_dim, "", false);
 	if (argc == 2) {
 		buffer.load_from_file(argv[1]);
 		bar.text = argv[1];
 	}
 	bar.update_texture();
 
-	Buffer mini_buffer(renderer, font, &bar, "", true);
+	Buffer mini_buffer(renderer, window, font, &bar, &window_dim, "", true);
 	
 	mini_buffer.main_buffer = &buffer;
 	buffer.mini_buffer = &mini_buffer;
@@ -60,23 +53,29 @@ int main(int argc, char **argv) {
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_QUIT) running = false;
+			if (event.type == SDL_WINDOWEVENT) {
+				if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+					window_dim.width = event.window.data1;
+					window_dim.height = event.window.data2;
+				}
+			}
 			
 			buffer.event_update(event);
 			mini_buffer.event_update(event);
+
+			SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
+			SDL_RenderClear(renderer);
+
+			buffer.render();
+		
+			bar.render();
+		
+			mini_buffer.render();
+			buffer.render_cursor();
+			mini_buffer.render_cursor();
+
+			SDL_RenderPresent(renderer);
 		}
-
-		SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
-		SDL_RenderClear(renderer);
-
-		buffer.render();
-		
-		bar.render();
-		
-		mini_buffer.render();
-		buffer.render_cursor();
-		mini_buffer.render_cursor();
-
-		SDL_RenderPresent(renderer);
 	}
 
 	TTF_CloseFont(font);
