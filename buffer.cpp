@@ -406,7 +406,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_TAB: {
-			line->text.insert(cursor_x, "	");
+			line->text.insert(cursor_x, "    ");
 			line->update_texture();
 			cursor_x += 4;
 			break;
