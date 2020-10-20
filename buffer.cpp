@@ -20,6 +20,7 @@ Buffer::Buffer(SDL_Renderer *renderer, SDL_Window *window,
 	infobar->cursor_y = 0;
 
 	TTF_SizeText(font, "-", &char_width, &char_height);
+
 	
 	lines.push_back(new Line(renderer, font));
 	lines[0]->text += start;
@@ -55,7 +56,7 @@ bool Buffer::load_from_file(const char *fp) {
 		lines.back()->text = line;
 		lines.back()->update_texture();
 	}
-	
+   	
 	infobar->text = fp;
 	infobar->update_texture();
 
@@ -101,10 +102,16 @@ void Buffer::cursor_move_right() {
 void Buffer::cursor_forward_word() {
 	while (is_char_separator()) {
 		cursor_x++;
+		if (cursor_x > lines[cursor_y]->text.size() && cursor_y == lines.size() - 1) {
+			return;
+		}
 	}
 	
 	while (!is_char_separator()) {
 		cursor_x++;
+		if (cursor_x > lines[cursor_y]->text.size() && cursor_y == lines.size() - 1) {
+			return;
+		}
 		if (cursor_x > lines[cursor_y]->text.size()) {
 			cursor_move_down();
 			cursor_x = 0;
@@ -137,6 +144,13 @@ void Buffer::cursor_backward_word() {
 		}
 	}
 	cursor_x++;
+}
+
+void Buffer::delete_previous_word() {
+	while (is_char_separator() && cursor_x > 0) {
+		lines[cursor_y]->remove_char(cursor_x--);
+	}
+	lines[cursor_y]->update_texture();
 }
 
 bool Buffer::is_char_separator() {
@@ -175,6 +189,73 @@ void Buffer::center_view() {
 	if (view_y < 0) view_y = 0;
 }
 
+void Buffer::type(const char *text) {
+	lines[cursor_y]->add_chars(cursor_x, text);
+
+	if (!is_minibuffer) {
+		infobar->has_edited = true;
+		infobar->update_texture();
+	}
+
+	cursor_move_right();
+}
+
+void Buffer::minibuffer_clear() {
+	lines[0]->text = "";
+	lines[0]->prefix = "";
+	lines[0]->update_texture();
+		
+	cursor_x = 0;
+}
+
+void Buffer::view_down() {
+	view_y += ((int) (window_dim->height / char_height) * char_height) - char_height * 5;
+	if (view_y / char_height > lines.size()) {
+		view_y = lines.size() * char_height - (window_dim->height / 2);
+	}
+	cursor_y = (int) (view_y / char_height);
+}
+
+void Buffer::view_up() {
+	view_y -= ((int) (window_dim->height / char_height) * char_height) + char_height * 5;
+	if (view_y < 0) view_y = 0;
+				
+	cursor_y = (int) (view_y / char_height);
+}
+
+void Buffer::kill_line(const Uint8 *keyboard) {
+	Line *line = lines[cursor_y];
+	if (keyboard[SDL_SCANCODE_LCTRL]) {
+		if (line->text == "" && lines.size() > 1) {
+			lines.erase(lines.begin() + cursor_y);
+			return;
+		}
+		line->text = line->text.substr(0, cursor_x);
+		line->update_texture();
+	}
+}
+
+void Buffer::backspace(const Uint8 *keyboard) {
+	if (cursor_x == 0 && cursor_y == 0) return;
+
+	if (keyboard[SDL_SCANCODE_LCTRL]) {
+		delete_previous_word();
+	} else {
+		if (cursor_x == 0 && cursor_y > 0) {
+			std::string line_str = lines[cursor_y]->text;
+
+			lines.erase(lines.begin() + cursor_y);
+			cursor_move_up();
+			cursor_x = lines[cursor_y]->text.size();
+			lines[cursor_y]->text += line_str;
+			lines[cursor_y]->update_texture();
+		} else {
+			lines[cursor_y]->remove_char(cursor_x);
+			cursor_move_left();
+		}
+	}
+}
+
 void Buffer::event_update(const SDL_Event &event) {
 	if (!in_focus) return;
 
@@ -183,49 +264,93 @@ void Buffer::event_update(const SDL_Event &event) {
 	const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
 	
 	if (event.type == SDL_TEXTINPUT) {
-		line->add_chars(cursor_x, event.text.text);
-		cursor_move_right();
+		type(event.text.text);
 	} else if (event.type == SDL_KEYDOWN) {
 		// Clear minibuffer when any key is pressed.
 		if (!is_minibuffer && mini_buffer->cursor_x > 0) {
-			mini_buffer->lines[0]->text = "";
-			mini_buffer->lines[0]->prefix = "";
-			mini_buffer->lines[0]->update_texture();
-		
-			mini_buffer->cursor_x = 0;
+			mini_buffer->minibuffer_clear();
 		}
 		
 		switch (event.key.keysym.sym) {
+		case SDLK_F11: {
+			if (infobar->text[1] == ':') {
+				std::string s = "start cmd.exe /K \"";
+				s += infobar->text.substr(0, 2);
+				s += " && cd ";
+				size_t pos = infobar->text.find_last_of('\\');
+				std::string t = infobar->text.substr(0, pos + 1);
+				s += t + "\"";
+				printf("%s\n", &s[0]);
+				system(&s[0]);
+			} else {
+				system("start");
+			}
+			break;
+		}
+		case SDLK_F5: {
+			if (is_minibuffer) break;
+			
+			if (compile_command == "") {
+				mini_buffer->lines[0]->text = "Compilation command not set. Press f10 to set.";
+				mini_buffer->lines[0]->prefix = "";
+				mini_buffer->lines[0]->update_texture();
+				mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
+				break;
+			}
+			
+			if (infobar->text[1] == ':') {
+				std::string s = "start cmd.exe /K \"";
+				s += infobar->text.substr(0, 2);
+				s += " && cd ";
+				size_t pos = infobar->text.find_last_of('\\');
+				std::string t = infobar->text.substr(0, pos + 1);
+				s += t + " && " + compile_command + "\"";
+				system(&s[0]);
+			} else {
+				std::string s = "start && ";
+				s += compile_command;
+				system(&s[0]);
+			}
+
+			break;
+		}
+		case SDLK_F6: {
+			if (is_minibuffer) break;
+			
+			if (program_executable == "") {
+				mini_buffer->lines[0]->text = "Exeuctable name not set. Press f12 to set.";
+				mini_buffer->lines[0]->prefix = "";
+				mini_buffer->lines[0]->update_texture();
+				mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
+				break;
+			}
+			
+			if (infobar->text[1] == ':') {
+				std::string s = "start cmd.exe /K \"";
+				s += infobar->text.substr(0, 2);
+				s += " && cd ";
+				size_t pos = infobar->text.find_last_of('\\');
+				std::string t = infobar->text.substr(0, pos + 1);
+				s += t + " && " + program_executable + "\"";
+				system(&s[0]);
+			} else {
+				std::string s = "start && ";
+				s += program_executable;
+				system(&s[0]);
+			}
+			
+			break;
+		}
 		case SDLK_v: {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
-				view_y += ((int) (window_dim->height / char_height) * char_height) - char_height * 5;
-				if (view_y / char_height > lines.size()) {
-					view_y = lines.size() * char_height - (window_dim->height / 2);
-				}
-				cursor_y = (int) (view_y / char_height);
+				view_down();
 			} else if (keyboard[SDL_SCANCODE_LALT]) {
-				view_y -= ((int) (window_dim->height / char_height) * char_height) + char_height * 5;
-				if (view_y < 0) view_y = 0;
-				
-				cursor_y = (int) (view_y / char_height);
+				view_up();
 			}
 			break;
 		}
 		case SDLK_BACKSPACE: {
-			if (cursor_x == 0 && cursor_y == 0) break;
-			
-			if (cursor_x == 0 && cursor_y > 0) {
-				std::string line_str = line->text;
-				
-				lines.erase(lines.begin() + cursor_y);
-				cursor_move_up();
-				cursor_x = lines[cursor_y]->text.size();
-				lines[cursor_y]->text += line_str;
-				lines[cursor_y]->update_texture();
-			} else {
-				line->remove_char(cursor_x);
-				cursor_move_left();
-			}
+			backspace(keyboard);
 			break;
 		}
 		case SDLK_RETURN: {
@@ -251,6 +376,7 @@ void Buffer::event_update(const SDL_Event &event) {
 					SDL_SetWindowTitle(window, &title[0]);
 
 					infobar->text = line->text;
+					infobar->has_edited = false;
 					infobar->update_texture();
 
 					line->prefix = "";
@@ -283,6 +409,7 @@ void Buffer::event_update(const SDL_Event &event) {
 					line->update_texture();
 
 					in_focus = false;
+					infobar->has_edited = false;
 					main_buffer->in_focus = true;
 					view_y = 0;
 					
@@ -317,6 +444,32 @@ void Buffer::event_update(const SDL_Event &event) {
 					main_buffer->in_focus = true;
 					break;
 				}
+				case MB_SetCompileCommand: {
+					main_buffer->compile_command = line->text;
+
+					line->prefix = "";
+					line->text = "Command set.";
+					line->update_texture();
+
+					cursor_x = line->text.size();
+
+					in_focus = false;
+					main_buffer->in_focus = true;
+					break;
+				}
+				case MB_SetProgramExecutable: {
+					main_buffer->program_executable = line->text;
+
+					line->prefix = "";
+					line->text = "Executable name set.";
+					line->update_texture();
+
+					cursor_x = line->text.size();
+
+					in_focus = false;
+					main_buffer->in_focus = true;
+					break;
+				}
 				}
 				break;
 			}
@@ -337,6 +490,28 @@ void Buffer::event_update(const SDL_Event &event) {
 			lines[cursor_y]->update_texture();
 			break;
 		}
+		// case SDLK_w: {
+		// 	if (keyboard[SDL_SCANCODE_LALT]) {
+		// 		if (clip) {
+		// 			delete clip;
+		// 			clip = new Clipboard;
+		// 		}
+		// 		clip->copy_text("weee", 4);
+		// 	}
+		// 	break;
+		// }
+		// case SDLK_y: {
+		// 	if (keyboard[SDL_SCANCODE_LCTRL]) {
+		// 		if (!clip) {
+		// 			mini_buffer->lines[0]->text = "No text selected.";
+		// 			mini_buffer->lines[0]->update_texture();
+		// 			mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
+		// 		} else {
+		// 			clip->paste_text();
+		// 		}
+		// 	}
+		// 	break;
+		// }
 		case SDLK_d: {
 			if (keyboard[SDL_SCANCODE_LCTRL]) {
 				if (cursor_x + 1 > line->text.size()) break;
@@ -407,14 +582,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_k: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
-				if (line->text == "" && cursor_y > 0) {
-					lines.erase(lines.begin() + cursor_y);
-					break;
-				}
-				line->text = line->text.substr(0, cursor_x);
-				line->update_texture();
-			}
+			kill_line(keyboard);
 			break;
 		}
 		case SDLK_TAB: {
@@ -423,6 +591,27 @@ void Buffer::event_update(const SDL_Event &event) {
 			cursor_x += 4;
 			break;
 		}
+		case SDLK_F10: {
+			if (is_minibuffer) break;
+			mini_buffer->mode = MB_SetCompileCommand;
+			mini_buffer->lines[0]->prefix = "Compile Command: ";
+			mini_buffer->lines[0]->update_texture();
+
+			mini_buffer->in_focus = true;
+			in_focus = false;
+			break;
+		}
+		case SDLK_F12: {
+			if (is_minibuffer) break;
+			mini_buffer->mode = MB_SetProgramExecutable;
+			mini_buffer->lines[0]->prefix = "Program Executable: ";
+			mini_buffer->lines[0]->update_texture();
+
+			mini_buffer->in_focus = true;
+			in_focus = false;
+			break;
+		}
+
 		case SDLK_s: {
 			if (is_minibuffer) break;
 			
@@ -436,6 +625,7 @@ void Buffer::event_update(const SDL_Event &event) {
 				mini_buffer->lines[0]->prefix = "Save to: ";
 				if (infobar->text != "*buffer*") {
 					mini_buffer->lines[0]->text = infobar->text;
+					mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
 				}
 				mini_buffer->lines[0]->update_texture();
 
@@ -455,7 +645,13 @@ void Buffer::event_update(const SDL_Event &event) {
 
 				mini_buffer->mode = MB_LoadFile;
 				mini_buffer->lines[0]->prefix = "Load File: ";
-				mini_buffer->lines[0]->text = "";
+				if (infobar->text[1] == ':') {
+					size_t pos = infobar->text.find_last_of('\\');
+					mini_buffer->lines[0]->text = infobar->text.substr(0, pos + 1);
+					mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
+				} else {
+					mini_buffer->lines[0]->text = "";
+				}
 				mini_buffer->lines[0]->update_texture();
 				mini_buffer->in_focus = true;
 				in_focus = false;
@@ -540,9 +736,9 @@ void Buffer::render_cursor() {
 	if (is_minibuffer) yoff += window_dim->height - char_height;
 	
 	SDL_Rect cursor = { cursor_x * char_width,
-						cursor_y * char_height + yoff,
+						cursor_y * char_height + yoff + char_height / 2,
 						char_width,
-						char_height };
+						char_height / 2 };
 
 	if (is_minibuffer) {
 		cursor.x += lines[0]->prefix.size() * char_width;

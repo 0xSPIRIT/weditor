@@ -17,6 +17,8 @@ public:
 	std::string text;
 	int cursor_y;
 
+	bool has_edited = false;
+
 	WindowDim *window_dim;
 	
 	TTF_Font *font;

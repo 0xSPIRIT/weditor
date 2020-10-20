@@ -28,14 +28,14 @@ int main(int argc, char **argv) {
 										  window_dim.width,
 										  window_dim.height,
 										  SDL_WINDOW_RESIZABLE);
-	
+
 	SDL_Renderer *renderer = SDL_CreateRenderer(window,
 												-1,
 												0);
 	bool running = true;
 
 	SDL_Color col = { 255, 255, 255 };
-	TTF_Font *font = TTF_OpenFont("fonts/8514oem.fon", 14);
+	TTF_Font *font = TTF_OpenFont("fonts/8514oem.fon", 18);
 
 	InfoBar bar(renderer, font, &window_dim);
 	bar.text = "*buffer*";
@@ -48,7 +48,6 @@ int main(int argc, char **argv) {
 	bar.update_texture();
 
 	Buffer mini_buffer(renderer, window, font, &bar, &window_dim, "", true);
-	
 	mini_buffer.main_buffer = &buffer;
 	buffer.mini_buffer = &mini_buffer;
 	

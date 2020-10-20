@@ -18,7 +18,8 @@ InfoBar::~InfoBar() {
 void InfoBar::update_texture() {
 	SDL_Color color = { 6, 35, 41 };
 
-	std::string s = text + "    L" + std::to_string(cursor_y);
+	std::string s = text + (has_edited ? "*" : " ") +
+		"    L" + std::to_string(cursor_y);
 	
 	surface = TTF_RenderText_Blended(font,
  									 &s[0],

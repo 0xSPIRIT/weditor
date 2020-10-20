@@ -10,7 +10,9 @@
 enum MiniBufferMode {
 					 MB_SaveFile,
 					 MB_LoadFile,
-					 MB_GotoLine
+					 MB_GotoLine,
+					 MB_SetCompileCommand,
+					 MB_SetProgramExecutable
 };
 
 struct Buffer {
@@ -18,6 +20,9 @@ struct Buffer {
 		   TTF_Font *font, InfoBar *bar, WindowDim *dim,
 		   const char *start, bool is_minibuf);
 	~Buffer();
+
+	void type(const char *text);
+	void minibuffer_clear();
 
 	void cursor_move_up();
 	void cursor_move_down();
@@ -27,11 +32,19 @@ struct Buffer {
 	void cursor_forward_word();
 	void cursor_backward_word();
 
+	void kill_line(const Uint8 *keyboard);
+
+	void delete_previous_word();
+	void backspace(const Uint8 *keyboard);
+
 	void set_cursor_y(int y);
 	void set_cursor_x(int x);
 
 	void update_view();
 	void center_view();
+
+	void view_down();
+	void view_up();
 
 	bool is_line_empty();
 	bool is_char_separator();
@@ -46,6 +59,8 @@ struct Buffer {
 public:
 	SDL_Renderer *renderer;
 	SDL_Window *window;
+
+	std::string compile_command, program_executable;
 
 	WindowDim *window_dim;
 	
