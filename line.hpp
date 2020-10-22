@@ -14,7 +14,7 @@ struct Line {
 	void add_chars(size_t index, const char *chars);
 	void remove_char(size_t index);
 	
-	void render(int yoff);
+	void render(int xoff, int yoff);
 	void update_texture();
 public:
 	std::string text, prefix;

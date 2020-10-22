@@ -46,6 +46,9 @@ struct Buffer {
 	void view_down();
 	void view_up();
 
+	bool is_meta_pressed(const Uint8 *keyboard);
+	bool is_ctrl_pressed(const Uint8 *keyboard);
+	
 	bool is_line_empty();
 	bool is_char_separator();
 	
@@ -67,6 +70,7 @@ public:
 	TTF_Font *font;
 	Buffer *mini_buffer = nullptr;
 
+	int view_x = 0;
 	int view_y = 0;
 
 	InfoBar *infobar;
@@ -78,9 +82,13 @@ public:
 	
 	std::vector<Line *> lines;
 
-	std::vector<char> word_separators = { ' ', '(', ')', '[', ']', '_',
-                                          '<', '>', ',', '.', '=', ';',
-	                                      '#' };
+	std::vector<char> word_separators =
+		{
+			' ', '(', ')', '[', ']', '_',
+			'<', '>', ',', '.', '=', ';',
+			'#', '\'', '\"', ':', '{', '}',
+			'\\' , '+', '-', '*', '/'
+		};
 	
 	// MiniBuffer:
 	bool is_minibuffer;

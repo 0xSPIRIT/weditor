@@ -35,9 +35,9 @@ int main(int argc, char **argv) {
 	bool running = true;
 
 	SDL_Color col = { 255, 255, 255 };
-	TTF_Font *font = TTF_OpenFont("fonts/8514oem.fon", 18);
+	TTF_Font *font = TTF_OpenFont("fonts/lucon.ttf", 18);
 
-	InfoBar bar(renderer, font, &window_dim);
+	InfoBar bar(renderer, window, font, &window_dim);
 	bar.text = "*buffer*";
 
 	Buffer buffer(renderer, window, font, &bar, &window_dim, &start_text[0], false);
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
 		bar.text = argv[1];
 	}
 	bar.update_texture();
-
+	
 	Buffer mini_buffer(renderer, window, font, &bar, &window_dim, "", true);
 	mini_buffer.main_buffer = &buffer;
 	buffer.mini_buffer = &mini_buffer;

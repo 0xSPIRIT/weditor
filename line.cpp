@@ -20,10 +20,10 @@ void Line::remove_char(size_t index) {
 	update_texture();
 }
 
-void Line::render(int yoff) {
+void Line::render(int xoff, int yoff) {
 	if (!texture) return;
 	
-	SDL_Rect rect = { 0, yoff, surface->w, surface->h };
+	SDL_Rect rect = { xoff, yoff, surface->w, surface->h };
 
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	SDL_RenderCopy(renderer, texture, NULL, &rect);

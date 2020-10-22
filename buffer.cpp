@@ -3,6 +3,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 
 #include "defs.hpp"
 #include "utils.hpp"
@@ -21,7 +22,6 @@ Buffer::Buffer(SDL_Renderer *renderer, SDL_Window *window,
 
 	TTF_SizeText(font, "-", &char_width, &char_height);
 
-	
 	lines.push_back(new Line(renderer, font));
 	lines[0]->text += start;
 	lines[0]->update_texture();
@@ -128,27 +128,29 @@ void Buffer::cursor_backward_word() {
 	}
 	
 	while (is_char_separator()) {
-		if (cursor_y == 0) return;
 		cursor_x--;
+		if (cursor_y == 0 && cursor_x < 0) return;
 		if (cursor_x < 0) {
 			cursor_move_up();
 			cursor_x = lines[cursor_y]->text.size();
 		}
 	}
 	while (!is_char_separator()) {
-		if (cursor_y == 0) return;
+		if (cursor_y == 0 && cursor_x < 0) return;
 		cursor_x--;
 		if (cursor_x < 0) {
 			cursor_move_up();
 			cursor_x = lines[cursor_y]->text.size();
 		}
 	}
+	
 	cursor_x++;
 }
 
 void Buffer::delete_previous_word() {
-	while (is_char_separator() && cursor_x > 0) {
+	while (!is_char_separator() && cursor_x > 0) {
 		lines[cursor_y]->remove_char(cursor_x--);
+		printf("%c", lines[cursor_y]->text[cursor_x]);
 	}
 	lines[cursor_y]->update_texture();
 }
@@ -177,10 +179,17 @@ bool Buffer::is_line_empty() {
 }
 
 void Buffer::update_view() {
+	if (cursor_x * char_width - view_x >= window_dim->width ||
+		cursor_x * char_width - view_x < 0) {
+		view_x = cursor_x * char_width + char_width - window_dim->width;
+	}
+
 	if (cursor_y * char_height - view_y > window_dim->height - char_height * 3 ||
 		cursor_y * char_height - view_y < 0) {
 		view_y = cursor_y * char_height - window_dim->height / 2;
 	}
+
+	if (view_x < 0) view_x = 0;
 	if (view_y < 0) view_y = 0;
 }
 
@@ -193,7 +202,7 @@ void Buffer::type(const char *text) {
 	lines[cursor_y]->add_chars(cursor_x, text);
 
 	if (!is_minibuffer) {
-		infobar->has_edited = true;
+		infobar->set_has_edited(true);
 		infobar->update_texture();
 	}
 
@@ -223,9 +232,17 @@ void Buffer::view_up() {
 	cursor_y = (int) (view_y / char_height);
 }
 
+bool Buffer::is_meta_pressed(const Uint8 *keyboard) {
+	return keyboard[SDL_SCANCODE_LALT] || keyboard[SDL_SCANCODE_RALT];
+}
+
+bool Buffer::is_ctrl_pressed(const Uint8 *keyboard) {
+	return keyboard[SDL_SCANCODE_LCTRL] || keyboard[SDL_SCANCODE_RCTRL];
+}
+
 void Buffer::kill_line(const Uint8 *keyboard) {
 	Line *line = lines[cursor_y];
-	if (keyboard[SDL_SCANCODE_LCTRL]) {
+	if (is_ctrl_pressed(keyboard)) {
 		if (line->text == "" && lines.size() > 1) {
 			lines.erase(lines.begin() + cursor_y);
 			return;
@@ -238,7 +255,7 @@ void Buffer::kill_line(const Uint8 *keyboard) {
 void Buffer::backspace(const Uint8 *keyboard) {
 	if (cursor_x == 0 && cursor_y == 0) return;
 
-	if (keyboard[SDL_SCANCODE_LCTRL]) {
+	if (is_ctrl_pressed(keyboard)) {
 		delete_previous_word();
 	} else {
 		if (cursor_x == 0 && cursor_y > 0) {
@@ -342,9 +359,9 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_v: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				view_down();
-			} else if (keyboard[SDL_SCANCODE_LALT]) {
+			} else if (is_meta_pressed(keyboard)) {
 				view_up();
 			}
 			break;
@@ -372,11 +389,8 @@ void Buffer::event_update(const SDL_Event &event) {
 					}
 					stream.close();
 
-					std::string title = line->text + " - weditor";
-					SDL_SetWindowTitle(window, &title[0]);
-
 					infobar->text = line->text;
-					infobar->has_edited = false;
+					infobar->set_has_edited(false);
 					infobar->update_texture();
 
 					line->prefix = "";
@@ -409,7 +423,7 @@ void Buffer::event_update(const SDL_Event &event) {
 					line->update_texture();
 
 					in_focus = false;
-					infobar->has_edited = false;
+					infobar->set_has_edited(false);
 					main_buffer->in_focus = true;
 					view_y = 0;
 					
@@ -491,7 +505,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		// case SDLK_w: {
-		// 	if (keyboard[SDL_SCANCODE_LALT]) {
+		// 	if (is_meta_pressed(keyboard)) {
 		// 		if (clip) {
 		// 			delete clip;
 		// 			clip = new Clipboard;
@@ -513,14 +527,14 @@ void Buffer::event_update(const SDL_Event &event) {
 		// 	break;
 		// }
 		case SDLK_d: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				if (cursor_x + 1 > line->text.size()) break;
 				line->remove_char(cursor_x + 1);
 			}
 			break;
 		}
 		case SDLK_COMMA: {
-			if (keyboard[SDL_SCANCODE_LALT] && keyboard[SDL_SCANCODE_LSHIFT]) {
+			if (is_meta_pressed(keyboard) && keyboard[SDL_SCANCODE_LSHIFT]) {
 				cursor_x = 0;
 				set_cursor_y(0);
 				update_view();
@@ -528,7 +542,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_PERIOD: {
-			if (keyboard[SDL_SCANCODE_LALT] && keyboard[SDL_SCANCODE_LSHIFT]) {
+			if (is_meta_pressed(keyboard) && keyboard[SDL_SCANCODE_LSHIFT]) {
 				set_cursor_y(lines.size()-1);
 				cursor_x = lines[cursor_y]->text.size();
 				update_view();
@@ -536,47 +550,47 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_p: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				cursor_move_up();
 			}
 			break;
 		}
 		case SDLK_n: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				cursor_move_down();
 			}
 			break;
 		}
 		case SDLK_b: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				cursor_move_left();
-			} else if (keyboard[SDL_SCANCODE_RALT]) {
+			} else if (is_meta_pressed(keyboard)) {
 				cursor_backward_word();
 			}
 			break;
 		}
 		case SDLK_f: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				cursor_move_right();
-			} else if (keyboard[SDL_SCANCODE_RALT]) {
+			} else if (is_meta_pressed(keyboard)) {
 				cursor_forward_word();
 			}
 			break;
 		}
 		case SDLK_e: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				cursor_x = line->text.size();
 			}
 			break;
 		}
 		case SDLK_a: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				cursor_x = 0;
 			}
 			break;
 		}
 		case SDLK_l: {
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				center_view();
 			}
 			break;
@@ -615,7 +629,7 @@ void Buffer::event_update(const SDL_Event &event) {
 		case SDLK_s: {
 			if (is_minibuffer) break;
 			
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				if (mini_buffer == nullptr) {
 					fprintf(stderr, "mini buffer ptr not set in buffer.");
 					exit(1);
@@ -637,7 +651,7 @@ void Buffer::event_update(const SDL_Event &event) {
 		case SDLK_c: {
 			if (is_minibuffer) break;
 			
-			if (keyboard[SDL_SCANCODE_LCTRL]) {
+			if (is_ctrl_pressed(keyboard)) {
 				if (mini_buffer == nullptr) {
 					fprintf(stderr, "mini buffer ptr not set in buffer.");
 					exit(1);
@@ -660,14 +674,14 @@ void Buffer::event_update(const SDL_Event &event) {
 		}
 		case SDLK_g: {
 			if (is_minibuffer) {
-				if (keyboard[SDL_SCANCODE_LCTRL]) {
+				if (is_ctrl_pressed(keyboard)) {
 					lines[0]->text = "";
 					lines[0]->update_texture();
 					main_buffer->in_focus = true;
 					in_focus = false;
 				}
 			} else {
-				if (keyboard[SDL_SCANCODE_RALT]) {
+				if (is_meta_pressed(keyboard)) {
 					mini_buffer->mode = MB_GotoLine;
 					mini_buffer->lines[0]->prefix = "Goto Line: ";
 					mini_buffer->lines[0]->text = "";
@@ -679,7 +693,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_LEFTBRACKET: {
-			if (keyboard[SDL_SCANCODE_LALT] && keyboard[SDL_SCANCODE_LSHIFT]) {
+			if (is_meta_pressed(keyboard) && keyboard[SDL_SCANCODE_LSHIFT]) {
 				if (is_line_empty()) cursor_y--;
 				
 				while (cursor_y > 0 && !is_line_empty()) {
@@ -689,7 +703,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_RIGHTBRACKET: {
-			if (keyboard[SDL_SCANCODE_LALT] && keyboard[SDL_SCANCODE_LSHIFT]) {
+			if (is_meta_pressed(keyboard) && keyboard[SDL_SCANCODE_LSHIFT]) {
 				if (is_line_empty()) cursor_y++;
 				
 				while (cursor_y < lines.size()-1 && !is_line_empty()) {
@@ -701,6 +715,7 @@ void Buffer::event_update(const SDL_Event &event) {
 		}
 	}
 
+	update_view();
 	clamp_cursor();
 }
 
@@ -720,7 +735,7 @@ void Buffer::render() {
 	
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	for (size_t i = 0; i < lines.size(); ++i) {
-		lines[i]->render(i * char_height + yoff - view_y);
+		lines[i]->render(-view_x, i * char_height + yoff - view_y);
 	}
 }
 
@@ -734,11 +749,12 @@ void Buffer::clamp_cursor() {
 void Buffer::render_cursor() {
 	int yoff = -view_y;
 	if (is_minibuffer) yoff += window_dim->height - char_height;
+	int xoff = -view_x;
 	
-	SDL_Rect cursor = { cursor_x * char_width,
-						cursor_y * char_height + yoff + char_height / 2,
+	SDL_Rect cursor = { cursor_x * char_width + xoff,
+						cursor_y * char_height + yoff,
 						char_width,
-						char_height / 2 };
+						char_height };
 
 	if (is_minibuffer) {
 		cursor.x += lines[0]->prefix.size() * char_width;

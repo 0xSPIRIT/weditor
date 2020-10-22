@@ -8,8 +8,10 @@
 #include "defs.hpp"
 
 struct InfoBar {
-	InfoBar(SDL_Renderer *renderer, TTF_Font *font, WindowDim *dim);
+	InfoBar(SDL_Renderer *renderer, SDL_Window *window, TTF_Font *font, WindowDim *dim);
 	~InfoBar();
+
+	void set_has_edited(bool edited);
 
 	void render();
 	void update_texture();
@@ -23,6 +25,7 @@ public:
 	
 	TTF_Font *font;
 	SDL_Renderer *renderer;
+	SDL_Window *window;
 
 	SDL_Surface *surface;
 	SDL_Texture *texture;
