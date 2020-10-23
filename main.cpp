@@ -68,6 +68,7 @@ int main(int argc, char **argv) {
 			SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
 			SDL_RenderClear(renderer);
 
+			buffer.render_mark();
 			buffer.render();
 		
 			bar.render();

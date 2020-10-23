@@ -49,7 +49,7 @@ void InfoBar::render() {
 	SDL_SetRenderDrawColor(renderer, 209, 181, 151, 255);
 	SDL_RenderFillRect(renderer, &rect);
 
-	SDL_Rect textrect = { char_width * 2, window_dim->height - char_height * 2, surface->w, surface->h };
+	SDL_Rect textrect = { char_width, window_dim->height - char_height * 2, surface->w, surface->h };
 	
 	SDL_RenderCopy(renderer, texture, NULL, &textrect);
 }

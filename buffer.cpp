@@ -3,7 +3,6 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
-#include <iostream>
 
 #include "defs.hpp"
 #include "utils.hpp"
@@ -64,8 +63,8 @@ bool Buffer::load_from_file(const char *fp) {
 	SDL_SetWindowTitle(window, &title[0]);
 
 	view_y = 0;
-	cursor_x = 0;
 	cursor_y = 0;
+	set_cursor_x(0);
 
 	return 0;
 }
@@ -79,6 +78,7 @@ void Buffer::cursor_move_up() {
 		view_y -= char_height * (int) (window_dim->height / 2 / char_height);
 	}
 	if (view_y < 0) view_y = 0;
+	update_mark();
 }
 
 void Buffer::cursor_move_down() {
@@ -89,14 +89,18 @@ void Buffer::cursor_move_down() {
 	if (cursor_y * char_height + char_height * 3 - view_y > window_dim->height) {
 		view_y += char_height * (int) (window_dim->height / 2 / char_height);
 	}
+	
+	update_mark();
 }
 
 void Buffer::cursor_move_left() {
 	cursor_x--;
+	update_mark();
 }
 
 void Buffer::cursor_move_right() {
 	cursor_x++;
+	update_mark();
 }
 
 void Buffer::cursor_forward_word() {
@@ -114,7 +118,7 @@ void Buffer::cursor_forward_word() {
 		}
 		if (cursor_x > lines[cursor_y]->text.size()) {
 			cursor_move_down();
-			cursor_x = 0;
+			set_cursor_x(0);
 		}
 	}
 }
@@ -124,7 +128,7 @@ void Buffer::cursor_backward_word() {
 	if (cursor_x < 0) {
 		if (cursor_y == 0) return;
 		cursor_move_up();
-		cursor_x = lines[cursor_y]->text.size();
+		set_cursor_x(lines[cursor_y]->text.size());
 	}
 	
 	while (is_char_separator()) {
@@ -132,7 +136,7 @@ void Buffer::cursor_backward_word() {
 		if (cursor_y == 0 && cursor_x < 0) return;
 		if (cursor_x < 0) {
 			cursor_move_up();
-			cursor_x = lines[cursor_y]->text.size();
+			set_cursor_x(lines[cursor_y]->text.size());
 		}
 	}
 	while (!is_char_separator()) {
@@ -140,11 +144,12 @@ void Buffer::cursor_backward_word() {
 		cursor_x--;
 		if (cursor_x < 0) {
 			cursor_move_up();
-			cursor_x = lines[cursor_y]->text.size();
+			set_cursor_x(lines[cursor_y]->text.size());
 		}
 	}
 	
 	cursor_x++;
+	update_mark();
 }
 
 void Buffer::delete_previous_word() {
@@ -153,6 +158,7 @@ void Buffer::delete_previous_word() {
 		printf("%c", lines[cursor_y]->text[cursor_x]);
 	}
 	lines[cursor_y]->update_texture();
+	update_mark();
 }
 
 bool Buffer::is_char_separator() {
@@ -163,14 +169,166 @@ bool Buffer::is_char_separator() {
 	return false;
 }
 
+void Buffer::mark_start() {
+	mark_start_x = cursor_x;
+	mark_start_y = cursor_y;
+	is_mark_open = true;
+}
+
+void Buffer::mark_end() {
+	is_mark_open = false;
+}
+
+void Buffer::update_mark() {
+	if (!is_mark_open) return;
+	
+	mark_end_x = cursor_x;
+	mark_end_y = cursor_y;
+}
+
+void Buffer::kill_mark() {
+	if (!is_mark_open) return;
+
+	if (mark_start_y == mark_end_y) {
+		puts("start is equal to end");
+		int s = sign(mark_end_x - mark_start_x);
+		if (s > 0) {
+			lines[mark_start_y]->
+				text.erase(lines[mark_start_y]->text.begin() + mark_start_x,
+						   lines[mark_start_y]->text.begin() + mark_end_x);
+			set_cursor_x(cursor_x + (mark_start_x - mark_end_x));
+		} else if (s < 0) {
+			lines[mark_start_y]->
+				text.erase(lines[mark_start_y]->text.begin() + mark_end_x,
+						   lines[mark_start_y]->text.begin() + mark_start_x);
+		}
+		lines[mark_start_y]->update_texture();
+	} else if (mark_start_y < mark_end_y) {
+		puts("start is less than end");
+		printf("Mark start x: %d, mark end x: %d\n", mark_start_x, mark_end_x);
+
+		int count = mark_end_y - mark_start_y;
+		for (int i = 0; i < count; ++i) {
+			
+			int sx, sy, ex;
+
+			sy = (mark_start_y + i);
+			ex = lines[mark_start_y + i]->text.size();
+			if (i == 0) {
+				sx = mark_start_x * char_width - view_x;
+				if (i < count-1 && sx == 0) {
+					lines.erase(lines.begin() + mark_start_y + i);
+					continue;
+				}
+			} else if (i == count - 1) {
+				sx = 0;
+				ex = mark_end_x;
+				if (i < count-1 && sx == 0) {
+					lines.erase(lines.begin() + mark_start_y + i);
+					continue;
+				}
+			} else {
+				sx = 0;
+				lines.erase(lines.begin() + mark_start_y + i);
+				continue;
+			}
+
+			lines[mark_start_y + i]->text.erase
+				(lines[mark_start_y + i]->text.begin() + mark_start_x,
+				 lines[mark_start_y + i]->text.begin() + mark_end_x);
+			lines[mark_start_y + i]->update_texture();
+		}
+	}
+
+	mark_end();
+
+	if (!is_minibuffer) {
+		infobar->set_has_edited(true);
+		infobar->update_texture();
+	}
+}
+
+void Buffer::render_mark() {
+	if (!is_mark_open) return;
+	
+	if (mark_start_y == mark_end_y) {
+		SDL_Rect rect = {
+			mark_start_x * char_width - view_x,
+			mark_start_y * char_height - view_y,
+			(mark_end_x - mark_start_x) * char_width,
+			char_height
+		};
+		
+		SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+		SDL_RenderFillRect(renderer, &rect);
+	} else if (mark_start_y < mark_end_y) {
+		int count = mark_end_y - mark_start_y + 1;
+		for (int i = 0; i < count; ++i) {
+			SDL_Rect rect;
+			int sx, sy, ex;
+			
+			sy = (mark_start_y + i) * char_height - view_y;
+			ex = window_dim->width + view_x;
+			if (i == 0) {
+				sx = mark_start_x * char_width - view_x;
+			} else if (i == count - 1) {
+				sx = 0; // '- view_y' but because its always less than 0 we don't bother.
+				ex = mark_end_x * char_width - view_x;
+			} else {
+				sx = 0; 
+			}
+			
+			rect = {
+				sx,
+				sy,
+				ex,
+				char_height
+			};
+			SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+			SDL_RenderFillRect(renderer, &rect);
+			
+		}
+	} else {
+		int count = mark_end_y - mark_start_y - 1;
+		for (int i = 0; i > count; i--) {
+			SDL_Rect rect;
+			int sx, sy, ex;
+				
+			sy = (mark_start_y + i) * char_height - view_y;
+			ex = window_dim->width + view_x;
+			if (i == 0) {
+				ex = mark_start_x * char_width - view_x;
+				sx = 0;
+			} else if (i == count + 1){
+				ex = window_dim->width;
+				sx = mark_end_x * char_width - view_x;
+			} else {
+				sx = 0; 
+			}
+				
+			rect = {
+				sx,
+				sy,
+				ex,
+				char_height
+			};
+			SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+			SDL_RenderFillRect(renderer, &rect);
+		}
+	}
+}
+
+
 void Buffer::set_cursor_y(int y) {
 	cursor_y = y;
 	infobar->cursor_y = cursor_y;
 	infobar->update_texture();
+	update_mark();
 }
 
 void Buffer::set_cursor_x(int x) {
 	cursor_x = x;
+	update_mark();
 }
 
 bool Buffer::is_line_empty() {
@@ -199,6 +357,10 @@ void Buffer::center_view() {
 }
 
 void Buffer::type(const char *text) {
+	if (is_mark_open) {
+		kill_mark();	
+	}
+	
 	lines[cursor_y]->add_chars(cursor_x, text);
 
 	if (!is_minibuffer) {
@@ -214,7 +376,7 @@ void Buffer::minibuffer_clear() {
 	lines[0]->prefix = "";
 	lines[0]->update_texture();
 		
-	cursor_x = 0;
+	set_cursor_x(0);
 }
 
 void Buffer::view_down() {
@@ -253,6 +415,11 @@ void Buffer::kill_line(const Uint8 *keyboard) {
 }
 
 void Buffer::backspace(const Uint8 *keyboard) {
+	if (is_mark_open) {
+		kill_mark();
+		return;
+	}
+	
 	if (cursor_x == 0 && cursor_y == 0) return;
 
 	if (is_ctrl_pressed(keyboard)) {
@@ -263,7 +430,7 @@ void Buffer::backspace(const Uint8 *keyboard) {
 
 			lines.erase(lines.begin() + cursor_y);
 			cursor_move_up();
-			cursor_x = lines[cursor_y]->text.size();
+			set_cursor_x(lines[cursor_y]->text.size());
 			lines[cursor_y]->text += line_str;
 			lines[cursor_y]->update_texture();
 		} else {
@@ -281,7 +448,11 @@ void Buffer::event_update(const SDL_Event &event) {
 	const Uint8 *keyboard = SDL_GetKeyboardState(NULL);
 	
 	if (event.type == SDL_TEXTINPUT) {
-		type(event.text.text);
+		if (strcmp(event.text.text, " ") == 0 && is_ctrl_pressed(keyboard)) {
+			mark_start();
+		} else {
+			type(event.text.text);
+		}
 	} else if (event.type == SDL_KEYDOWN) {
 		// Clear minibuffer when any key is pressed.
 		if (!is_minibuffer && mini_buffer->cursor_x > 0) {
@@ -427,7 +598,7 @@ void Buffer::event_update(const SDL_Event &event) {
 					main_buffer->in_focus = true;
 					view_y = 0;
 					
-					main_buffer->cursor_x = 0;
+					main_buffer->set_cursor_x(0);
 					main_buffer->set_cursor_y(0);
 					break;
 				}
@@ -442,7 +613,7 @@ void Buffer::event_update(const SDL_Event &event) {
 						}
 						
 						main_buffer->set_cursor_y(linenum);
-						main_buffer->cursor_x = 0;
+						main_buffer->set_cursor_x(0);
 						line->text = "Cursor set.";
 
 						main_buffer->update_view();
@@ -486,7 +657,7 @@ void Buffer::event_update(const SDL_Event &event) {
 				}
 				}
 				break;
-			}
+			} // End if is_minibuffer
 			
 			std::string text_after = line->text.substr(cursor_x,
 													   line->text.size() -
@@ -498,7 +669,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			lines.insert(lines.begin() + cursor_y + 1, new Line(renderer, font));
 			cursor_move_down();
 			
-			cursor_x = 0;
+			set_cursor_x(0);
 			
 			lines[cursor_y]->text += text_after;
 			lines[cursor_y]->update_texture();
@@ -535,7 +706,7 @@ void Buffer::event_update(const SDL_Event &event) {
 		}
 		case SDLK_COMMA: {
 			if (is_meta_pressed(keyboard) && keyboard[SDL_SCANCODE_LSHIFT]) {
-				cursor_x = 0;
+				set_cursor_x(0);
 				set_cursor_y(0);
 				update_view();
 			}
@@ -544,7 +715,7 @@ void Buffer::event_update(const SDL_Event &event) {
 		case SDLK_PERIOD: {
 			if (is_meta_pressed(keyboard) && keyboard[SDL_SCANCODE_LSHIFT]) {
 				set_cursor_y(lines.size()-1);
-				cursor_x = lines[cursor_y]->text.size();
+				set_cursor_x(lines[cursor_y]->text.size());
 				update_view();
 			}
 			break;
@@ -585,7 +756,7 @@ void Buffer::event_update(const SDL_Event &event) {
 		}
 		case SDLK_a: {
 			if (is_ctrl_pressed(keyboard)) {
-				cursor_x = 0;
+				set_cursor_x(0);
 			}
 			break;
 		}
@@ -625,7 +796,6 @@ void Buffer::event_update(const SDL_Event &event) {
 			in_focus = false;
 			break;
 		}
-
 		case SDLK_s: {
 			if (is_minibuffer) break;
 			
@@ -673,6 +843,8 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_g: {
+			if (is_ctrl_pressed(keyboard)) mark_end();
+			
 			if (is_minibuffer) {
 				if (is_ctrl_pressed(keyboard)) {
 					lines[0]->text = "";
@@ -715,6 +887,8 @@ void Buffer::event_update(const SDL_Event &event) {
 		}
 	}
 
+	update_mark();
+	
 	update_view();
 	clamp_cursor();
 }
@@ -742,8 +916,8 @@ void Buffer::render() {
 void Buffer::clamp_cursor() {
 	if (cursor_y < 0) set_cursor_y(0);
 	else if (cursor_y > lines.size() - 1) set_cursor_y(lines.size() - 1);
-	else if (cursor_x < 0) cursor_x = 0;
-	else if (cursor_x > lines[cursor_y]->text.size()) cursor_x = lines[cursor_y]->text.size();
+	else if (cursor_x < 0) set_cursor_x(0);
+	else if (cursor_x > lines[cursor_y]->text.size()) set_cursor_x(lines[cursor_y]->text.size());
 }
 
 void Buffer::render_cursor() {
@@ -760,10 +934,17 @@ void Buffer::render_cursor() {
 		cursor.x += lines[0]->prefix.size() * char_width;
 	}
 
-	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-	if (in_focus) {
+	Uint32 windowflags = SDL_GetWindowFlags(window);
+	
+	if (!in_focus || !(windowflags & SDL_WINDOW_INPUT_FOCUS)) {
+		SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
 		SDL_RenderFillRect(renderer, &cursor);
 	} else {
+		if (is_mark_open) {
+			SDL_SetRenderDrawColor(renderer, 37, 241, 252, 255);
+		} else {
+			SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+		}
 		SDL_RenderDrawRect(renderer, &cursor);
 	}
 }

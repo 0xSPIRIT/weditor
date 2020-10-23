@@ -55,6 +55,13 @@ struct Buffer {
 	void clamp_cursor();
 	void render_cursor();
 
+	void mark_start();
+	void mark_end();
+	void kill_mark();
+
+	void update_mark();
+	void render_mark();
+
 	bool load_from_file(const char *file);
 	
 	void render();
@@ -62,6 +69,10 @@ struct Buffer {
 public:
 	SDL_Renderer *renderer;
 	SDL_Window *window;
+
+	bool is_mark_open = false;
+	int mark_start_x, mark_start_y;
+	int mark_end_x, mark_end_y;
 
 	std::string compile_command, program_executable;
 
