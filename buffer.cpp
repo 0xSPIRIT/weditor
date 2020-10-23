@@ -467,20 +467,33 @@ void Buffer::event_update(const SDL_Event &event) {
 			type(event.text.text);
 		}
 	} else if (event.type == SDL_MOUSEWHEEL) {
-		view_y -= char_height * scroll_by * event.wheel.y;
+		if (is_ctrl_pressed(keyboard)) {
+			view_y -= char_height * scroll_by * 2 * event.wheel.y;
+		} else {
+			view_y -= char_height * scroll_by * event.wheel.y;
+		}
 
 		if (cursor_y * char_height < view_y) {
 			cursor_y = (int) (view_y / char_height);
 		}
 		
-		/* *3 to include the length of the cursor itself*/
+		/* *3 to include the length of the cursor itself */
 		if (cursor_y * char_height > view_y + window_dim->height - char_height*3){ 
 			cursor_y = (int) ((view_y + window_dim->height - char_height * 3) / char_height);
 		}
 		
-		view_x += char_height * scroll_by * event.wheel.y;
-
 		update_view();
+	} else if (event.type == SDL_MOUSEBUTTONDOWN) {
+		if (event.button.button == SDL_BUTTON_LEFT) {
+			int x = (int) ((event.button.x + view_x) / char_width);
+			int y = (int) ((event.button.y + view_y) / char_height);
+
+			cursor_x = x;
+			cursor_y = y;
+
+			clamp_cursor();
+			update_view();
+		}
 	} else if (event.type == SDL_KEYDOWN) {
 		// Clear minibuffer when any key is pressed.
 		if (!is_minibuffer && mini_buffer->cursor_x > 0) {
