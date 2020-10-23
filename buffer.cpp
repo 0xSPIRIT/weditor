@@ -42,7 +42,7 @@ bool Buffer::load_from_file(const char *fp) {
 		return 1;
 	}
 
-	for (auto *e : lines) { delete e; }
+	for (auto *e : lines) delete e;
 	lines.clear();
 
 	std::string line;
@@ -69,6 +69,10 @@ bool Buffer::load_from_file(const char *fp) {
 	return 0;
 }
 
+void Buffer::toggle_overwrite_mode() {
+	overwrite_mode = !overwrite_mode;
+}
+
 void Buffer::cursor_move_up() {
 	cursor_y--;
 	infobar->cursor_y = cursor_y;
@@ -89,7 +93,7 @@ void Buffer::cursor_move_down() {
 	if (cursor_y * char_height + char_height * 3 - view_y > window_dim->height) {
 		view_y += char_height * (int) (window_dim->height / 2 / char_height);
 	}
-	
+
 	update_mark();
 }
 
@@ -360,8 +364,15 @@ void Buffer::type(const char *text) {
 	if (is_mark_open) {
 		kill_mark();	
 	}
-	
-	lines[cursor_y]->add_chars(cursor_x, text);
+
+	if (overwrite_mode) {
+		lines[cursor_y]->text.replace(lines[cursor_y]->text.begin()+cursor_x,
+									  lines[cursor_y]->text.begin()+cursor_x+strlen(text),
+									  text);
+		lines[cursor_y]->update_texture();
+	} else {
+		lines[cursor_y]->add_chars(cursor_x, text);
+	}
 
 	if (!is_minibuffer) {
 		infobar->set_has_edited(true);
@@ -697,6 +708,16 @@ void Buffer::event_update(const SDL_Event &event) {
 		// 	}
 		// 	break;
 		// }
+		case SDLK_INSERT: {
+			toggle_overwrite_mode();
+			break;
+		}
+		case SDLK_i: {
+			if (is_ctrl_pressed(keyboard)) {
+				toggle_overwrite_mode();
+			}
+			break;
+		}
 		case SDLK_d: {
 			if (is_ctrl_pressed(keyboard)) {
 				if (cursor_x + 1 > line->text.size()) break;
@@ -935,6 +956,12 @@ void Buffer::render_cursor() {
 	}
 
 	Uint32 windowflags = SDL_GetWindowFlags(window);
+
+	if (overwrite_mode) {
+		SDL_SetRenderDrawColor(renderer, 255, 255, 200, 200);
+		SDL_RenderFillRect(renderer, &cursor);
+		return;
+	}
 	
 	if (!in_focus || !(windowflags & SDL_WINDOW_INPUT_FOCUS)) {
 		SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);

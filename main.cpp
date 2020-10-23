@@ -3,6 +3,7 @@
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_image.h>
 
 #include "buffer.hpp"
 #include "infobar.hpp"
@@ -20,6 +21,7 @@ int main(int argc, char **argv) {
 	
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
+	IMG_Init(IMG_INIT_PNG);
 
 	WindowDim window_dim;
 	SDL_Window *window = SDL_CreateWindow("*buffer* - weditor",
@@ -32,7 +34,12 @@ int main(int argc, char **argv) {
 	SDL_Renderer *renderer = SDL_CreateRenderer(window,
 												-1,
 												0);
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+	
 	bool running = true;
+
+	SDL_Surface *window_icon_surf = IMG_Load("weditor_icon.png");
+	SDL_SetWindowIcon(window, window_icon_surf);
 
 	SDL_Color col = { 255, 255, 255 };
 	TTF_Font *font = TTF_OpenFont("fonts/lucon.ttf", 18);
@@ -81,8 +88,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	SDL_FreeSurface(window_icon_surf);
 	TTF_CloseFont(font);
 	TTF_Quit();
+	IMG_Quit();
 	SDL_DestroyWindow(window);
 	SDL_DestroyRenderer(renderer);
 }

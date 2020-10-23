@@ -46,6 +46,8 @@ struct Buffer {
 	void view_down();
 	void view_up();
 
+	void toggle_overwrite_mode();
+
 	bool is_meta_pressed(const Uint8 *keyboard);
 	bool is_ctrl_pressed(const Uint8 *keyboard);
 	
@@ -90,7 +92,8 @@ public:
 
 	int cursor_x = 0, cursor_y = 0;
 	int char_width, char_height;
-	
+
+	bool overwrite_mode = false;
 	std::vector<Line *> lines;
 
 	std::vector<char> word_separators =
