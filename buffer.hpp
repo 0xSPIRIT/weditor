@@ -86,6 +86,8 @@ public:
 	int view_x = 0;
 	int view_y = 0;
 
+	int scroll_by = 3; // chars
+
 	InfoBar *infobar;
 
 	bool in_focus = true;

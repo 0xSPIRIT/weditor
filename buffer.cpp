@@ -341,9 +341,11 @@ bool Buffer::is_line_empty() {
 }
 
 void Buffer::update_view() {
-	if (cursor_x * char_width - view_x >= window_dim->width ||
-		cursor_x * char_width - view_x < 0) {
+	if (cursor_x * char_width - view_x >= window_dim->width) {
 		view_x = cursor_x * char_width + char_width - window_dim->width;
+	}
+	if (cursor_x * char_width - view_x <= 0) {
+		view_x = cursor_x * char_width;
 	}
 
 	if (cursor_y * char_height - view_y > window_dim->height - char_height * 3 ||
@@ -464,6 +466,21 @@ void Buffer::event_update(const SDL_Event &event) {
 		} else {
 			type(event.text.text);
 		}
+	} else if (event.type == SDL_MOUSEWHEEL) {
+		view_y -= char_height * scroll_by * event.wheel.y;
+
+		if (cursor_y * char_height < view_y) {
+			cursor_y = (int) (view_y / char_height);
+		}
+		
+		/* *3 to include the length of the cursor itself*/
+		if (cursor_y * char_height > view_y + window_dim->height - char_height*3){ 
+			cursor_y = (int) ((view_y + window_dim->height - char_height * 3) / char_height);
+		}
+		
+		view_x += char_height * scroll_by * event.wheel.y;
+
+		update_view();
 	} else if (event.type == SDL_KEYDOWN) {
 		// Clear minibuffer when any key is pressed.
 		if (!is_minibuffer && mini_buffer->cursor_x > 0) {
@@ -957,21 +974,23 @@ void Buffer::render_cursor() {
 
 	Uint32 windowflags = SDL_GetWindowFlags(window);
 
-	if (overwrite_mode) {
-		SDL_SetRenderDrawColor(renderer, 255, 255, 200, 200);
-		SDL_RenderFillRect(renderer, &cursor);
-		return;
-	}
-	
 	if (!in_focus || !(windowflags & SDL_WINDOW_INPUT_FOCUS)) {
 		SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
 		SDL_RenderFillRect(renderer, &cursor);
-	} else {
+		return;
+	}
+	if (overwrite_mode) {
+		SDL_SetRenderDrawColor(renderer, 255, 255, 205, 127);
+		SDL_RenderFillRect(renderer, &cursor);
+		return;
+	}
+	if (in_focus || (windowflags & SDL_WINDOW_INPUT_FOCUS)) {
 		if (is_mark_open) {
-			SDL_SetRenderDrawColor(renderer, 37, 241, 252, 255);
+			SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
 		} else {
 			SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 		}
 		SDL_RenderDrawRect(renderer, &cursor);
+		return;
 	}
 }
