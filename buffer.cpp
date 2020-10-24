@@ -220,7 +220,6 @@ void Buffer::kill_mark() {
 	if (!is_mark_open) return;
 
 	if (mark_start_y == mark_end_y) {
-		puts("start is equal to end");
 		int s = sign(mark_end_x - mark_start_x);
 		if (s > 0) {
 			lines[mark_start_y]->
@@ -234,12 +233,8 @@ void Buffer::kill_mark() {
 		}
 		lines[mark_start_y]->update_texture();
 	} else if (mark_start_y < mark_end_y) {
-		puts("start is less than end");
-		printf("Mark start x: %d, mark end x: %d\n", mark_start_x, mark_end_x);
-
-		int count = mark_end_y - mark_start_y;
+		int count = mark_end_y - mark_start_y + 1;
 		for (int i = 0; i < count; ++i) {
-			
 			int sx, sy, ex;
 
 			sy = (mark_start_y + i);
@@ -253,6 +248,39 @@ void Buffer::kill_mark() {
 			} else if (i == count - 1) {
 				sx = 0;
 				ex = mark_end_x;
+				if (i < count-1 && sx == 0) {
+					lines.erase(lines.begin() + mark_start_y + i);
+					continue;
+				}
+			} else {
+				sx = 0;
+				lines.erase(lines.begin() + mark_start_y + i);
+				continue;
+			}
+
+			lines[mark_start_y + i]->text.erase
+				(lines[mark_start_y + i]->text.begin() + mark_start_x,
+				 lines[mark_start_y + i]->text.begin() + mark_end_x);
+			lines[mark_start_y + i]->update_texture();
+		}
+		cursor_y -= count - 1;
+	} else {
+		int count = mark_end_y - mark_start_y - 2;
+		for (int i = 0; i > count; i--) {
+			int sx, sy, ex;
+
+			sy = (mark_start_y + i) * char_height - view_y;
+			ex = window_dim->width + view_x;
+			if (i == 0) {
+				ex = mark_start_x * char_width - view_x;
+				sx = 0;
+				if (i < count-1 && sx == 0) {
+					lines.erase(lines.begin() + mark_start_y + i);
+					continue;
+				}
+			} else if (i == count + 1){
+				ex = window_dim->width;
+				sx = mark_end_x * char_width - view_x;
 				if (i < count-1 && sx == 0) {
 					lines.erase(lines.begin() + mark_start_y + i);
 					continue;
