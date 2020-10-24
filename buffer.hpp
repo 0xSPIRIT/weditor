@@ -35,6 +35,8 @@ struct Buffer {
 	void kill_line(const Uint8 *keyboard);
 
 	void delete_previous_word();
+	void delete_next_word();
+	
 	void backspace(const Uint8 *keyboard);
 
 	void set_cursor_y(int y);
@@ -64,6 +66,8 @@ struct Buffer {
 	void update_mark();
 	void render_mark();
 
+	void render_highlight_line();
+
 	bool load_from_file(const char *file);
 	
 	void render();
@@ -86,7 +90,7 @@ public:
 	int view_x = 0;
 	int view_y = 0;
 
-	int scroll_by = 3; // chars
+	int scroll_by = 5; // chars
 
 	InfoBar *infobar;
 

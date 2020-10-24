@@ -10,6 +10,12 @@
 
 #include "defs.hpp"
 
+int strlen(const char *str) {
+	size_t len = 0;
+	while (str[len++]) {}
+	return len;
+}
+
 int main(int argc, char **argv) {
 	std::string start_text;
 	if (argc > 2) {
@@ -42,7 +48,7 @@ int main(int argc, char **argv) {
 	SDL_SetWindowIcon(window, window_icon_surf);
 
 	SDL_Color col = { 255, 255, 255 };
-	TTF_Font *font = TTF_OpenFont("fonts/lucon.ttf", 18);
+	TTF_Font *font = TTF_OpenFont("fonts/8514oem.fon", 18);
 
 	InfoBar bar(renderer, window, font, &window_dim);
 	bar.text = "*buffer*";
@@ -75,6 +81,7 @@ int main(int argc, char **argv) {
 			SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
 			SDL_RenderClear(renderer);
 
+			buffer.render_highlight_line();
 			buffer.render_mark();
 			buffer.render();
 		

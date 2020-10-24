@@ -108,23 +108,36 @@ void Buffer::cursor_move_right() {
 }
 
 void Buffer::cursor_forward_word() {
+	cursor_x++;
+	if (cursor_x >= lines[cursor_y]->text.size()-1) {
+		if (cursor_y >= lines.size()) {
+			printf("aaa\n");
+			return;
+		}
+
+		cursor_move_down();
+		set_cursor_x(0);
+	}
+
 	while (is_char_separator()) {
 		cursor_x++;
-		if (cursor_x > lines[cursor_y]->text.size() && cursor_y == lines.size() - 1) {
-			return;
+		if (cursor_y == lines.size()-1 && cursor_x >= lines[cursor_y]->text.size()) return;
+		if (cursor_x < 0) {
+			cursor_move_down();
+			set_cursor_x(0);
 		}
 	}
-	
 	while (!is_char_separator()) {
+		if (cursor_y == lines.size()-1 && cursor_x >= lines[cursor_y]->text.size()) return;
 		cursor_x++;
-		if (cursor_x > lines[cursor_y]->text.size() && cursor_y == lines.size() - 1) {
-			return;
-		}
 		if (cursor_x > lines[cursor_y]->text.size()) {
 			cursor_move_down();
 			set_cursor_x(0);
 		}
 	}
+	
+	cursor_x++;
+	update_mark();
 }
 
 void Buffer::cursor_backward_word() {
@@ -151,18 +164,31 @@ void Buffer::cursor_backward_word() {
 			set_cursor_x(lines[cursor_y]->text.size());
 		}
 	}
-	
-	cursor_x++;
+
+	if (cursor_x != 0) {
+		cursor_x++;
+	}
 	update_mark();
 }
 
 void Buffer::delete_previous_word() {
-	while (!is_char_separator() && cursor_x > 0) {
-		lines[cursor_y]->remove_char(cursor_x--);
-		printf("%c", lines[cursor_y]->text[cursor_x]);
+	if (is_mark_open) {
+		kill_mark();
+	} else {
+		mark_start();
+		cursor_backward_word();
+		kill_mark();
 	}
-	lines[cursor_y]->update_texture();
-	update_mark();
+}
+
+void Buffer::delete_next_word() {
+	if (is_mark_open) {
+		kill_mark();
+	} else {
+		mark_start();
+		cursor_forward_word();
+		kill_mark();
+	}
 }
 
 bool Buffer::is_char_separator() {
@@ -250,6 +276,12 @@ void Buffer::kill_mark() {
 		infobar->set_has_edited(true);
 		infobar->update_texture();
 	}
+}
+
+void Buffer::render_highlight_line() {
+	SDL_Rect rect = { 0, cursor_y * char_height - view_y, window_dim->width, char_height };
+	SDL_SetRenderDrawColor(renderer, 12, 46, 53, 255);
+	SDL_RenderFillRect(renderer, &rect);
 }
 
 void Buffer::render_mark() {
@@ -467,11 +499,7 @@ void Buffer::event_update(const SDL_Event &event) {
 			type(event.text.text);
 		}
 	} else if (event.type == SDL_MOUSEWHEEL) {
-		if (is_ctrl_pressed(keyboard)) {
-			view_y -= char_height * scroll_by * 2 * event.wheel.y;
-		} else {
-			view_y -= char_height * scroll_by * event.wheel.y;
-		}
+		view_y -= char_height * scroll_by * event.wheel.y;
 
 		if (cursor_y * char_height < view_y) {
 			cursor_y = (int) (view_y / char_height);
@@ -589,6 +617,17 @@ void Buffer::event_update(const SDL_Event &event) {
 					if (main_buffer == nullptr) {
 						fprintf(stderr, "buffer ptr inside minibuffer not set\n");
 						exit(1);
+					}
+
+					if (line->text == "") {
+						line->prefix = "";
+						line->text = "Please provide a file name.";
+						cursor_x = line->text.size();
+						line->update_texture();
+
+						in_focus = false;
+						main_buffer->in_focus = true;
+						break;
 					}
 
 					std::ofstream stream(line->text);
@@ -716,28 +755,28 @@ void Buffer::event_update(const SDL_Event &event) {
 			lines[cursor_y]->update_texture();
 			break;
 		}
-		// case SDLK_w: {
-		// 	if (is_meta_pressed(keyboard)) {
-		// 		if (clip) {
-		// 			delete clip;
-		// 			clip = new Clipboard;
-		// 		}
-		// 		clip->copy_text("weee", 4);
-		// 	}
-		// 	break;
-		// }
-		// case SDLK_y: {
-		// 	if (keyboard[SDL_SCANCODE_LCTRL]) {
-		// 		if (!clip) {
-		// 			mini_buffer->lines[0]->text = "No text selected.";
-		// 			mini_buffer->lines[0]->update_texture();
-		// 			mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
-		// 		} else {
-		// 			clip->paste_text();
-		// 		}
-		// 	}
-		// 	break;
-		// }
+			// case SDLK_w: {
+			// 	if (is_meta_pressed(keyboard)) {
+			// 		if (clip) {
+			// 			delete clip;
+			// 			clip = new Clipboard;
+			// 		}
+			// 		clip->copy_text("weee", 4);
+			// 	}
+			// 	break;
+			// }
+			// case SDLK_y: {
+			// 	if (keyboard[SDL_SCANCODE_LCTRL]) {
+			// 		if (!clip) {
+			// 			mini_buffer->lines[0]->text = "No text selected.";
+			// 			mini_buffer->lines[0]->update_texture();
+			// 			mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
+			// 		} else {
+			// 			clip->paste_text();
+			// 		}
+			// 	}
+			// 	break;
+			// }
 		case SDLK_INSERT: {
 			toggle_overwrite_mode();
 			break;
@@ -749,7 +788,9 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 		case SDLK_d: {
-			if (is_ctrl_pressed(keyboard)) {
+			if (is_meta_pressed(keyboard)) {
+				delete_next_word();
+			} else if (is_ctrl_pressed(keyboard)) {
 				if (cursor_x + 1 > line->text.size()) break;
 				line->remove_char(cursor_x + 1);
 			}
@@ -950,9 +991,9 @@ void Buffer::render() {
 		yoff = window_dim->height - char_height;
 		
 		const SDL_Rect rect = { 0,
-								window_dim->height - char_height,
-								window_dim->width,
-								char_height };
+			window_dim->height - char_height,
+			window_dim->width,
+			char_height };
 		
 		SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
 		SDL_RenderFillRect(renderer, &rect);
@@ -960,6 +1001,8 @@ void Buffer::render() {
 	
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	for (size_t i = 0; i < lines.size(); ++i) {
+		if (i < (int)(view_y / char_height) ||
+			i > (int)((view_y + window_dim->height) / char_height)) continue;
 		lines[i]->render(-view_x, i * char_height + yoff - view_y);
 	}
 }
@@ -977,9 +1020,9 @@ void Buffer::render_cursor() {
 	int xoff = -view_x;
 	
 	SDL_Rect cursor = { cursor_x * char_width + xoff,
-						cursor_y * char_height + yoff,
-						char_width,
-						char_height };
+		cursor_y * char_height + yoff,
+		char_width,
+		char_height };
 
 	if (is_minibuffer) {
 		cursor.x += lines[0]->prefix.size() * char_width;
@@ -988,22 +1031,27 @@ void Buffer::render_cursor() {
 	Uint32 windowflags = SDL_GetWindowFlags(window);
 
 	if (!in_focus || !(windowflags & SDL_WINDOW_INPUT_FOCUS)) {
-		SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-		SDL_RenderFillRect(renderer, &cursor);
+		SDL_SetRenderDrawColor(renderer, 127, 127, 127, 255);
+		SDL_RenderDrawRect(renderer, &cursor);
 		return;
 	}
 	if (overwrite_mode) {
-		SDL_SetRenderDrawColor(renderer, 255, 255, 205, 127);
-		SDL_RenderFillRect(renderer, &cursor);
-		return;
-	}
-	if (in_focus || (windowflags & SDL_WINDOW_INPUT_FOCUS)) {
 		if (is_mark_open) {
 			SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
 		} else {
 			SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 		}
 		SDL_RenderDrawRect(renderer, &cursor);
+		return;
+	}
+	if (in_focus || (windowflags & SDL_WINDOW_INPUT_FOCUS)) {
+		if (is_mark_open) {
+			SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
+			SDL_RenderDrawRect(renderer, &cursor);
+		} else {
+			SDL_SetRenderDrawColor(renderer, 255, 255, 255, 100);
+			SDL_RenderFillRect(renderer, &cursor);
+		}
 		return;
 	}
 }
