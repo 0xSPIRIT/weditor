@@ -12,7 +12,11 @@ enum MiniBufferMode {
 					 MB_LoadFile,
 					 MB_GotoLine,
 					 MB_SetCompileCommand,
-					 MB_SetProgramExecutable
+					 MB_SetProgramExecutable,
+					 
+					 MB_SetBackgroundColor,
+					 MB_SetForegroundColor,
+					 MB_SetInfoBarColor
 };
 
 struct Buffer {
@@ -107,7 +111,8 @@ public:
 			' ', '(', ')', '[', ']', '_',
 			'<', '>', ',', '.', '=', ';',
 			'#', '\'', '\"', ':', '{', '}',
-			'\\' , '+', '-', '*', '/'
+			'\\' , '+', '-', '*', '/', ',',
+			'\''
 		};
 	
 	// MiniBuffer:

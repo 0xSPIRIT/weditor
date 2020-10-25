@@ -55,7 +55,7 @@ bool Buffer::load_from_file(const char *fp) {
 		lines.back()->text = line;
 		lines.back()->update_texture();
 	}
-   	
+	   
 	infobar->text = fp;
 	infobar->update_texture();
 
@@ -219,9 +219,12 @@ void Buffer::update_mark() {
 void Buffer::kill_mark() {
 	if (!is_mark_open) return;
 
+	if (mark_start_x < 0) mark_start_x = 0;
+	
 	if (mark_start_y == mark_end_y) {
 		int s = sign(mark_end_x - mark_start_x);
 		if (s > 0) {
+			
 			lines[mark_start_y]->
 				text.erase(lines[mark_start_y]->text.begin() + mark_start_x,
 						   lines[mark_start_y]->text.begin() + mark_end_x);
@@ -582,7 +585,8 @@ void Buffer::event_update(const SDL_Event &event) {
 				mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
 				break;
 			}
-			
+
+			/* This stuff is kinda shady... I have to rewrite it. */		   
 			if (infobar->text[1] == ':') {
 				std::string s = "start cmd.exe /K \"";
 				s += infobar->text.substr(0, 2);
@@ -784,26 +788,26 @@ void Buffer::event_update(const SDL_Event &event) {
 			break;
 		}
 			// case SDLK_w: {
-			// 	if (is_meta_pressed(keyboard)) {
-			// 		if (clip) {
-			// 			delete clip;
-			// 			clip = new Clipboard;
-			// 		}
-			// 		clip->copy_text("weee", 4);
-			// 	}
-			// 	break;
+			//	 if (is_meta_pressed(keyboard)) {
+			//		 if (clip) {
+			//			 delete clip;
+			//			 clip = new Clipboard;
+			//		 }
+			//		 clip->copy_text("weee", 4);
+			//	 }
+			//	 break;
 			// }
 			// case SDLK_y: {
-			// 	if (keyboard[SDL_SCANCODE_LCTRL]) {
-			// 		if (!clip) {
-			// 			mini_buffer->lines[0]->text = "No text selected.";
-			// 			mini_buffer->lines[0]->update_texture();
-			// 			mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
-			// 		} else {
-			// 			clip->paste_text();
-			// 		}
-			// 	}
-			// 	break;
+			//	 if (keyboard[SDL_SCANCODE_LCTRL]) {
+			//		 if (!clip) {
+			//			 mini_buffer->lines[0]->text = "No text selected.";
+			//			 mini_buffer->lines[0]->update_texture();
+			//			 mini_buffer->cursor_x = mini_buffer->lines[0]->text.size();
+			//		 } else {
+			//			 clip->paste_text();
+			//		 }
+			//	 }
+			//	 break;
 			// }
 		case SDLK_INSERT: {
 			toggle_overwrite_mode();
@@ -1023,7 +1027,10 @@ void Buffer::render() {
 			window_dim->width,
 			char_height };
 		
-		SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
+			SDL_SetRenderDrawColor(renderer, editor_colors.bg.r,
+								   editor_colors.bg.g,
+								   editor_colors.bg.b,
+								   editor_colors.bg.a);
 		SDL_RenderFillRect(renderer, &rect);
 	}
 	

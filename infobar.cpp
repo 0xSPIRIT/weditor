@@ -29,8 +29,6 @@ void InfoBar::set_has_edited(bool edited) {
 }
 
 void InfoBar::update_texture() {
-	SDL_Color color = { 6, 35, 41 };
-
 	std::string s = text;
 	if (has_edited) {
 		s += "*";
@@ -39,14 +37,18 @@ void InfoBar::update_texture() {
 	
 	surface = TTF_RenderText_Blended(font,
 									 &s[0],
-									 color);
+									 editor_colors.fg);
 
 	texture = SDL_CreateTextureFromSurface(renderer, surface);
 }
 
 void InfoBar::render() {
 	SDL_Rect rect = { 0, window_dim->height - char_height * 2, window_dim->width, char_height };
-	SDL_SetRenderDrawColor(renderer, 209, 181, 151, 255);
+	SDL_SetRenderDrawColor(renderer,
+						   editor_colors.bar.r,
+						   editor_colors.bar.g,
+						   editor_colors.bar.b,
+						   editor_colors.bar.a);
 	SDL_RenderFillRect(renderer, &rect);
 
 	SDL_Rect textrect = { char_width, window_dim->height - char_height * 2, surface->w, surface->h };

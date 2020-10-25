@@ -10,6 +10,8 @@
 
 #include "defs.hpp"
 
+Editor_Colors editor_colors;
+
 int strlen(const char *str) {
 	size_t len = 0;
 	while (str[len++]) {}
@@ -78,7 +80,11 @@ int main(int argc, char **argv) {
 			buffer.event_update(event);
 			mini_buffer.event_update(event);
 
-			SDL_SetRenderDrawColor(renderer, 6, 35, 41, 255);
+			SDL_SetRenderDrawColor(renderer,
+								   editor_colors.bg.r,
+								   editor_colors.bg.g,
+								   editor_colors.bg.b,
+								   editor_colors.bg.a);
 			SDL_RenderClear(renderer);
 
 			buffer.render_highlight_line();

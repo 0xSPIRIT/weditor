@@ -7,6 +7,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
+#include "defs.hpp"
+
 struct Line {
 	Line(SDL_Renderer *renderer, TTF_Font *font);
 	~Line();
@@ -21,8 +23,8 @@ public:
 	size_t length = 0;
 
 	TTF_Font *font = NULL;
-	SDL_Color color = { 209, 184, 151 };
-	SDL_Color minibuffer_color = { 209, 184, 51 };
+	SDL_Color color = editor_colors.fg;
+	SDL_Color minibuffer_color = editor_colors.fg;
 
 	SDL_Renderer *renderer;
 
