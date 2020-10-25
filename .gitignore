@@ -1,4 +1,4 @@
 *.exe
+.gitignore
 *.temp
 *.tmp
-*.dll
